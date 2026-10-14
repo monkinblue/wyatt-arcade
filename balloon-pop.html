@@ -130,4 +130,293 @@
     /* Level Complete Overlay */
     #win-overlay {
       display: none; position: fixed; inset: 0; z-index: 60;
-      background: rgba(29, 53, 8
+      background: rgba(29, 53, 87, 0.7); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center; flex-direction: column;
+    }
+    .win-card {
+      background: #fff; border-radius: 40px; padding: 40px 60px;
+      text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+      animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .win-emoji { font-size: 110px; margin-bottom: 10px; }
+    .win-word { font-size: 56px; font-weight: 700; color: #06D6A0; letter-spacing: 6px; }
+  </style>
+</head>
+<body>
+
+  <div class="cloud" style="top: 14%; animation-duration: 38s;">☁️</div>
+  <div class="cloud" style="top: 32%; animation-duration: 52s; animation-delay: -20s; font-size: 120px;">☁️</div>
+  <div class="cloud" style="top: 10%; animation-duration: 45s; animation-delay: -10s;">☁️</div>
+
+  <header>
+    <a href="index.html" class="back-btn">🏠 Back</a>
+
+    <div class="ref-card" id="ref-card">
+      <div class="ref-emoji" id="ref-emoji">🦖</div>
+      <div class="ref-info">
+        <div class="ref-label" id="ref-label">Spell Your Name!</div>
+        <div class="ref-word" id="ref-word">WYATT</div>
+      </div>
+    </div>
+
+    <div class="level-pill">⭐ Level <span id="level-num">1</span></div>
+  </header>
+
+  <div class="name-bar" id="name-bar"></div>
+
+  <div id="win-overlay">
+    <div class="win-card">
+      <div class="win-emoji" id="win-emoji">🏆</div>
+      <div class="win-word" id="win-word">WYATT!</div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    // Level 1 is their name; Levels 2+ are everyday objects with reference emojis!
+    const levels = [
+      {
+        word: isEmma ? 'EMMA' : 'WYATT',
+        emoji: isEmma ? '🦄' : '🦖',
+        label: 'Spell Your Name!'
+      },
+      { word: 'DOG',  emoji: '🐶', label: 'Find the Letters!' },
+      { word: 'CAT',  emoji: '🐱', label: 'Find the Letters!' },
+      { word: 'SUN',  emoji: '☀️', label: 'Find the Letters!' },
+      { word: 'CAR',  emoji: '🚗', label: 'Find the Letters!' },
+      { word: 'PIG',  emoji: '🐷', label: 'Find the Letters!' },
+      { word: 'BUG',  emoji: '🐞', label: 'Find the Letters!' },
+      { word: 'HAT',  emoji: '🎩', label: 'Find the Letters!' },
+      { word: 'TENT', emoji: '⛺', label: 'Find the Letters!' },
+      { word: 'FISH', emoji: '🐟', label: 'Find the Letters!' },
+      { word: 'FROG', emoji: '🐸', label: 'Find the Letters!' }
+    ];
+
+    const allAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const colors = ['#FF595E', '#FFCA3A', '#8AC926', '#1982C4', '#6A4C93', '#FF924C', '#F15BB5'];
+
+    let currentLevelIdx = 0;
+    let targetLetters = [];
+    let filledSlots = [];
+    let balloons = [];
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    // Bright, joyful rising arcade chime for CORRECT letter
+    function playCorrectSound() {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      notes.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + i * 0.065);
+        gain.gain.setValueAtTime(0.35, now + i * 0.065);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.065 + 0.25);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + i * 0.065);
+        osc.stop(now + i * 0.065 + 0.25);
+      });
+    }
+
+    // Scary/Obvious low monster buzzer horn for WRONG balloon!
+    function playWrongSound() {
+      initAudio();
+      const now = audioCtx.currentTime;
+      [115, 123, 82].forEach((freq) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.linearRampToValueAtTime(freq * 0.65, now + 0.45);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.48);
+      });
+    }
+
+    // Grand fanfare when all letters of the word are found!
+    function playLevelWinSound() {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const melody = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
+      const times  = [0,      0.12,   0.24,   0.36,    0.52,   0.66];
+      melody.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + times[i]);
+        gain.gain.setValueAtTime(0.4, now + times[i]);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + times[i] + 0.32);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + times[i]);
+        osc.stop(now + times[i] + 0.32);
+      });
+    }
+
+    function loadLevel(idx) {
+      currentLevelIdx = idx % levels.length;
+      const lvl = levels[currentLevelIdx];
+      targetLetters = lvl.word.split('');
+      filledSlots = targetLetters.map(() => false);
+
+      document.getElementById('level-num').textContent = currentLevelIdx + 1;
+      document.getElementById('ref-emoji').textContent = lvl.emoji;
+      document.getElementById('ref-label').textContent = lvl.label;
+      document.getElementById('ref-word').textContent = lvl.word;
+
+      renderSlots();
+    }
+
+    function renderSlots() {
+      const nameBar = document.getElementById('name-bar');
+      nameBar.innerHTML = '';
+      targetLetters.forEach((letter, idx) => {
+        const slot = document.createElement('div');
+        slot.className = 'name-slot' + (filledSlots[idx] ? ' filled' : '');
+        slot.textContent = letter;
+        nameBar.appendChild(slot);
+      });
+    }
+
+    function spawnBalloon() {
+      const el = document.createElement('div');
+      el.className = 'balloon';
+
+      // Find which letters the kid still needs
+      const neededLetters = targetLetters.filter((_, idx) => !filledSlots[idx]);
+      const neededSet = new Set(neededLetters);
+      const decoyLetters = allAlphabet.filter(l => !neededSet.has(l));
+
+      // Target letters are RARE (18% chance) so most balloons are other alphabet letters!
+      let letter;
+      if (neededLetters.length > 0 && Math.random() < 0.18) {
+        letter = neededLetters[Math.floor(Math.random() * neededLetters.length)];
+      } else {
+        letter = decoyLetters[Math.floor(Math.random() * decoyLetters.length)];
+      }
+
+      el.textContent = letter;
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+
+      const startX = 60 + Math.random() * (window.innerWidth - 200);
+      let y = window.innerHeight + 160;
+      const speed = isEmma ? (1.3 + Math.random() * 0.9) : (1.7 + Math.random() * 1.2);
+      const wobbleSpeed = 0.02 + Math.random() * 0.02;
+      let angle = Math.random() * Math.PI * 2;
+
+      el.style.left = `${startX}px`;
+      el.style.top = `${y}px`;
+
+      const bObj = { el, y, startX, speed, wobbleSpeed, angle, letter, popped: false };
+
+      el.onpointerdown = (e) => {
+        e.stopPropagation();
+        if (bObj.popped) return;
+        bObj.popped = true;
+
+        // Order doesn't matter! Check if ANY unfilled slot matches the popped balloon's letter
+        const matchIdx = targetLetters.findIndex((tLetter, idx) => tLetter === letter && !filledSlots[idx]);
+
+        const burst = document.createElement('div');
+        burst.className = 'pop-burst';
+        burst.style.left = el.style.left;
+        burst.style.top = el.style.top;
+
+        if (matchIdx !== -1) {
+          // CORRECT LETTER!
+          filledSlots[matchIdx] = true;
+          renderSlots();
+          playCorrectSound();
+
+          burst.textContent = '🌟🎉';
+          document.body.classList.add('correct-flash');
+          setTimeout(() => document.body.classList.remove('correct-flash'), 280);
+
+          const refCard = document.getElementById('ref-card');
+          refCard.classList.add('bounce');
+          setTimeout(() => refCard.classList.remove('bounce'), 300);
+
+          // Check if all letters are found!
+          if (filledSlots.every(Boolean)) {
+            setTimeout(handleLevelWin, 450);
+          }
+        } else {
+          // WRONG LETTER - Scary/Obvious buzzer + screen shake + red flash!
+          playWrongSound();
+          burst.textContent = '👻❌';
+          document.body.classList.remove('wrong-flash');
+          void document.body.offsetWidth; // trigger reflow
+          document.body.classList.add('wrong-flash');
+          setTimeout(() => document.body.classList.remove('wrong-flash'), 480);
+        }
+
+        document.body.appendChild(burst);
+        setTimeout(() => burst.remove(), 750);
+        el.remove();
+      };
+
+      document.body.appendChild(el);
+      balloons.push(bObj);
+    }
+
+    function handleLevelWin() {
+      playLevelWinSound();
+      const lvl = levels[currentLevelIdx];
+      document.getElementById('win-emoji').textContent = lvl.emoji;
+      document.getElementById('win-word').textContent = lvl.word + '!';
+      document.getElementById('win-overlay').style.display = 'flex';
+
+      setTimeout(() => {
+        document.getElementById('win-overlay').style.display = 'none';
+        loadLevel(currentLevelIdx + 1);
+      }, 2800);
+    }
+
+    function animate() {
+      for (let i = balloons.length - 1; i >= 0; i--) {
+        const b = balloons[i];
+        if (b.popped) {
+          balloons.splice(i, 1);
+          continue;
+        }
+        b.y -= b.speed;
+        b.angle += b.wobbleSpeed;
+        const xOffset = Math.sin(b.angle) * 25;
+        b.el.style.top = `${b.y}px`;
+        b.el.style.left = `${b.startX + xOffset}px`;
+
+        if (b.y < -200) {
+          b.el.remove();
+          balloons.splice(i, 1);
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    loadLevel(0);
+    animate();
+    // Spawn balloons steadily so the sky stays active while waiting for rare letters
+    setInterval(spawnBalloon, isEmma ? 1150 : 950);
+    spawnBalloon();
+    setTimeout(spawnBalloon, 450);
+  </script>
+</body>
+</html>
