@@ -14,7 +14,6 @@
       touch-action: manipulation;
     }
 
-    /* Fullscreen Interactive Stage */
     #stage-wrap {
       position: fixed; inset: 0;
       display: flex; flex-direction: column;
@@ -24,7 +23,6 @@
       background: linear-gradient(180deg, #70D6FF 0%, #BDE0FE 58%, #8AC926 58%, #52B788 100%);
     }
 
-    /* Top Navigation & Backpack HUD */
     header {
       display: flex; justify-content: space-between; align-items: center;
       z-index: 60; flex-shrink: 0;
@@ -44,7 +42,6 @@
       font-size: 22px; cursor: pointer;
     }
 
-    /* STORYBOOK PAGE CARD (Unmissable & Never Cut Off!) */
     .story-card {
       position: relative; z-index: 50;
       background: #FFFDF7;
@@ -85,7 +82,6 @@
       background: #E2F1FF; padding: 5px 14px; border-radius: 20px;
     }
 
-    /* Word-by-Word Interactive Text */
     .sentence-box {
       display: flex; flex-wrap: wrap; justify-content: center;
       gap: 6px 8px; line-height: 1.35; text-align: center;
@@ -93,7 +89,7 @@
     .story-word {
       font-size: 27px; font-weight: 700; color: #1D3557;
       padding: 3px 8px; border-radius: 12px; cursor: pointer;
-      transition: all 0.15s ease; border: 3px solid transparent;
+      transition: all 0.12s ease; border: 3px solid transparent;
     }
     .story-word:hover { background: #E2F1FF; }
     .story-word.highlight {
@@ -102,7 +98,6 @@
       box-shadow: 0 6px 14px rgba(255, 159, 28, 0.35);
     }
 
-    /* Interactive Scenery Playground */
     #stage {
       flex: 1; position: relative; width: 100%;
     }
@@ -155,7 +150,6 @@
       100% { transform: translateY(-55px) scale(1); opacity: 0; }
     }
 
-    /* Gear Picker Tray on Page 2 */
     .gear-tray {
       position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%);
       background: rgba(255,255,255,0.96); border: 6px solid #FFD166;
@@ -188,7 +182,6 @@
       </div>
     </header>
 
-    <!-- STORYBOOK WORDS CARD (Right near the top so it is NEVER hidden!) -->
     <div class="story-card">
       <button class="nav-arrow" id="prev-btn" onclick="changePage(-1)">◀</button>
 
@@ -197,78 +190,55 @@
           <button class="read-btn" id="read-btn" onclick="playPageNarration()">🔊 Read to Me</button>
           <span class="page-indicator" id="page-num">Page 1 of 5 • Tap any word or picture!</span>
         </div>
-        <div class="sentence-box" id="sentence-box">
-          <span class="story-word">One</span>
-          <span class="story-word">sunny</span>
-          <span class="story-word">morning,</span>
-          <span class="story-word">Wyatt</span>
-          <span class="story-word">and</span>
-          <span class="story-word">Emma</span>
-          <span class="story-word">traded</span>
-          <span class="story-word">their</span>
-          <span class="story-word">silly</span>
-          <span class="story-word">spotted</span>
-          <span class="story-word">cow</span>
-          <span class="story-word">for</span>
-          <span class="story-word">five</span>
-          <span class="story-word">magic</span>
-          <span class="story-word">glowing</span>
-          <span class="story-word">beans!</span>
-        </div>
+        <div class="sentence-box" id="sentence-box"></div>
       </div>
 
       <button class="nav-arrow" id="next-btn" onclick="changePage(1)">▶</button>
     </div>
 
-    <!-- LIVING SCENE PLAYGROUND -->
     <div id="stage"></div>
   </div>
 
   <audio id="page-audio" preload="auto"></audio>
 
   <script>
-    // Helper: Turns a story text string into automatic timestamps until you paste ElevenLabs JSON!
-    function buildWordsWithDefaultTimestamps(text) {
-      const rawWords = text.split(' ');
-      let time = 0.15;
-      return rawWords.map(w => {
-        const duration = Math.max(0.32, w.length * 0.065);
-        const start = Number(time.toFixed(2));
-        const end = Number((time + duration).toFixed(2));
-        time = end + 0.06;
-        return { word: w, start, end };
+    // =========================================================================
+    // SMART NATURAL READING SPEED PACER
+    // Automatically scales word timings to match your ElevenLabs MP3 duration,
+    // including natural storyteller pauses for commas and exclamation marks!
+    // =========================================================================
+    function generateNaturalWordTimings(text, totalAudioDuration) {
+      const rawWords = text.trim().split(/\s+/);
+
+      // Estimate each word's speaking weight + punctuation pause weight
+      const weights = rawWords.map(w => {
+        const cleanLen = w.replace(/[^a-zA-Z]/g, '').length || 2;
+        // Spoken duration weight based on word length
+        let speakWeight = 1.0 + (cleanLen * 0.22);
+        // Natural storyteller pause after punctuation
+        let pauseWeight = 0.08;
+        if (w.endsWith(',')) pauseWeight = 0.75;
+        else if (w.endsWith('!') || w.endsWith('.')) pauseWeight = 1.35;
+        return { word: w, speakWeight, pauseWeight, total: speakWeight + pauseWeight };
       });
-    }
 
-    // Also supports pasting raw ElevenLabs character alignment JSON!
-    function parseElevenLabsAlignment(alignment) {
-      if (Array.isArray(alignment)) return alignment;
-      const chars = alignment.characters || [];
-      const starts = alignment.character_start_times_seconds || [];
-      const ends = alignment.character_end_times_seconds || [];
-      const words = [];
-      let currentWord = '';
-      let wordStart = null;
-      let wordEnd = null;
+      const sumWeights = weights.reduce((acc, item) => acc + item.total, 0);
 
-      for (let i = 0; i < chars.length; i++) {
-        const ch = chars[i];
-        if (ch === ' ' || ch === '\n') {
-          if (currentWord.length > 0) {
-            words.push({ word: currentWord, start: wordStart, end: wordEnd });
-            currentWord = '';
-            wordStart = null;
-          }
-        } else {
-          if (wordStart === null) wordStart = starts[i];
-          wordEnd = ends[i];
-          currentWord += ch;
-        }
-      }
-      if (currentWord.length > 0) {
-        words.push({ word: currentWord, start: wordStart, end: wordEnd });
-      }
-      return words;
+      // Leave a tiny lead-in (0.08s) and tail buffer (0.15s) to match ElevenLabs MP3s
+      const targetSpan = totalAudioDuration
+        ? Math.max(1.5, totalAudioDuration - 0.22)
+        : sumWeights * 0.23; // ~155 WPM natural children's book pace if no MP3
+
+      const scale = targetSpan / sumWeights;
+      let cursor = 0.08;
+
+      return weights.map(item => {
+        const start = Number(cursor.toFixed(2));
+        const speakDuration = item.speakWeight * scale;
+        const end = Number((start + speakDuration).toFixed(2));
+        cursor += item.total * scale;
+        return { word: item.word, start, end };
+      });
     }
 
     const gearCatalog = [
@@ -282,10 +252,8 @@
     const pages = [
       {
         bg: 'linear-gradient(180deg, #70D6FF 0%, #BDE0FE 58%, #8AC926 58%, #52B788 100%)',
-        audioUrl: 'audio/beanstalk-p1.mp3',
-        words: buildWordsWithDefaultTimestamps(
-          "One sunny morning, Wyatt and Emma traded their silly spotted cow for five magic glowing beans! They planted them right beside the garden fence."
-        ),
+        fileBase: 'beanstalk-p1.mp3',
+        text: "One sunny morning, Wyatt and Emma traded their silly spotted cow for five magic glowing beans! They planted them right beside the garden fence.",
         props: [
           { icon: '🏡', label: 'Family Cottage', x: '10%', y: '22%', anim: 'shake', msg: 'Knock knock! Time for an adventure!', sound: 'knock' },
           { icon: '🐄', label: 'Daisy the Cow', x: '34%', y: '32%', anim: 'bounce', msg: 'MOOOOO! Good luck with those beans! 🥛', sound: 'moo' },
@@ -296,11 +264,9 @@
       },
       {
         bg: 'linear-gradient(180deg, #1D3557 0%, #457B9D 58%, #2D6A4F 58%, #1B4332 100%)',
-        audioUrl: 'audio/beanstalk-p2.mp3',
+        fileBase: 'beanstalk-p2.mp3',
         isGearPage: true,
-        words: buildWordsWithDefaultTimestamps(
-          "That night while the moon shone bright, a giant green beanstalk sprouted all the way into the clouds! Pick two items to pack in your backpack before you climb!"
-        ),
+        text: "That night while the moon shone bright, a giant green beanstalk sprouted all the way into the clouds! Pick two items to pack in your backpack before you climb!",
         props: [
           { icon: '🌙', label: 'Sleepy Moon', x: '8%', y: '10%', anim: 'spin', msg: 'Yaaaawn! Have a safe climb!', sound: 'chime' },
           { icon: '🌱', label: 'Giant Stalk', x: '84%', y: '28%', anim: 'bounce', msg: 'SPROING! Growing higher and higher!', sound: 'jump' },
@@ -309,10 +275,8 @@
       },
       {
         bg: 'linear-gradient(180deg, #48CAE4 0%, #90E0EF 50%, #CAF0F8 100%)',
-        audioUrl: 'audio/beanstalk-p3.mp3',
-        words: buildWordsWithDefaultTimestamps(
-          "Up, up, up they climbed! Higher than the tallest trees and right through the fluffy white clouds until they saw a glittering road in the sky."
-        ),
+        fileBase: 'beanstalk-p3.mp3',
+        text: "Up, up, up they climbed! Higher than the tallest trees and right through the fluffy white clouds until they saw a glittering road in the sky.",
         props: [
           { icon: '🌿', label: 'Giant Vine', x: '46%', y: '15%', anim: 'shake', msg: 'Rustle rustle! Big leafy steps!', sound: 'jump' },
           { icon: '🌿', label: 'Leafy Step', x: '46%', y: '55%', anim: 'shake', msg: 'Hold on tight!', sound: 'jump' },
@@ -324,11 +288,9 @@
       },
       {
         bg: 'linear-gradient(180deg, #CDB4DB 0%, #FFC8DD 58%, #FFAFCC 100%)',
-        audioUrl: 'audio/beanstalk-p4.mp3',
+        fileBase: 'beanstalk-p4.mp3',
         isCastlePage: true,
-        words: buildWordsWithDefaultTimestamps(
-          "At the top stood a tremendous Cloud Castle! Inside, a sleepy Giant snored loudly at his table beside a singing Golden Harp and a friendly Golden Goose. Tap your packed gear to use it!"
-        ),
+        text: "At the top stood a tremendous Cloud Castle! Inside, a sleepy Giant snored loudly at his table beside a singing Golden Harp and a friendly Golden Goose. Tap your packed gear to use it!",
         props: [
           { icon: '🏰', label: 'Cloud Castle', x: '10%', y: '22%', anim: 'shake', msg: 'BOOM! Everything inside is huge!', sound: 'moo' },
           { icon: '🧔‍♂️', label: 'Sleepy Giant', x: '32%', y: '28%', anim: 'bounce', msg: 'FEE-FI-FO-FUM... Zzzzzzz! 💤', sound: 'moo' },
@@ -338,10 +300,8 @@
       },
       {
         bg: 'linear-gradient(180deg, #90E0EF 0%, #D8F3DC 58%, #52B788 58%, #40916C 100%)',
-        audioUrl: 'audio/beanstalk-p5.mp3',
-        words: buildWordsWithDefaultTimestamps(
-          "With a wiggle and a giggle, Wyatt and Emma zoomed all the way down the beanstalk right into Dad's arms! The Golden Goose honked happily, and they all had golden pancakes for dinner!"
-        ),
+        fileBase: 'beanstalk-p5.mp3',
+        text: "With a wiggle and a giggle, Wyatt and Emma zoomed all the way down the beanstalk right into Dad's arms! The Golden Goose honked happily, and they all had golden pancakes for dinner!",
         props: [
           { icon: '👨🏻', label: 'Dad', x: '18%', y: '35%', anim: 'bounce', msg: 'Welcome back, my brave explorers! 🏆', sound: 'harp' },
           { icon: '👦🏻', label: 'Wyatt', x: '40%', y: '40%', anim: 'bounce', msg: 'Dad! You won\'t believe what was in the clouds!', sound: 'jump' },
@@ -352,12 +312,29 @@
     ];
 
     let currentPage = 0;
+    let currentWords = [];
     let audioCtx = null;
     let demoTimers = [];
     let isPlaying = false;
     let wordStopHandler = null;
 
     const audioEl = document.getElementById('page-audio');
+
+    // Automatically recalculate exact word timings as soon as the ElevenLabs MP3 loads its duration!
+    audioEl.addEventListener('loadedmetadata', () => {
+      if (audioEl.duration && isFinite(audioEl.duration)) {
+        currentWords = generateNaturalWordTimings(pages[currentPage].text, audioEl.duration);
+        bindWordClicks();
+      }
+    });
+
+    // If root `beanstalk-p1.mp3` isn't found, automatically check `audio/beanstalk-p1.mp3`!
+    audioEl.addEventListener('error', () => {
+      const page = pages[currentPage];
+      if (audioEl.src && !audioEl.src.includes('/audio/')) {
+        audioEl.src = 'audio/' + page.fileBase;
+      }
+    });
 
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -436,9 +413,7 @@
       for (let i = 0; i < 2; i++) {
         const slot = document.getElementById(`slot-${i}`);
         const gearObj = gearCatalog.find(g => g.id === packedGear[i]);
-        if (gearObj) {
-          slot.textContent = gearObj.icon;
-        }
+        if (gearObj) slot.textContent = gearObj.icon;
       }
     }
 
@@ -457,6 +432,19 @@
       b.textContent = text;
       document.getElementById('stage').appendChild(b);
       setTimeout(() => b.remove(), 1100);
+    }
+
+    function bindWordClicks() {
+      const sentenceBox = document.getElementById('sentence-box');
+      sentenceBox.innerHTML = '';
+      currentWords.forEach((wObj, idx) => {
+        const span = document.createElement('span');
+        span.className = 'story-word';
+        span.id = `word-${idx}`;
+        span.textContent = wObj.word;
+        span.onclick = () => playSingleWord(idx, wObj);
+        sentenceBox.appendChild(span);
+      });
     }
 
     function renderPage() {
@@ -517,20 +505,12 @@
         renderGearChoices();
       }
 
-      const sentenceBox = document.getElementById('sentence-box');
-      sentenceBox.innerHTML = '';
-      const words = parseElevenLabsAlignment(page.words);
+      // Generate initial natural timings (will refine automatically once MP3 metadata loads)
+      currentWords = generateNaturalWordTimings(page.text, null);
+      bindWordClicks();
 
-      words.forEach((wObj, idx) => {
-        const span = document.createElement('span');
-        span.className = 'story-word';
-        span.id = `word-${idx}`;
-        span.textContent = wObj.word;
-        span.onclick = () => playSingleWord(idx, wObj);
-        sentenceBox.appendChild(span);
-      });
-
-      audioEl.src = page.audioUrl;
+      // Try root path first (e.g., `beanstalk-p1.mp3`), fallback handler checks `audio/beanstalk-p1.mp3`
+      audioEl.src = page.fileBase;
       renderBackpack();
     }
 
@@ -592,14 +572,20 @@
       btn.classList.add('playing');
       btn.innerHTML = '⏹️ Reading...';
 
-      const words = parseElevenLabsAlignment(pages[currentPage].words);
-
       audioEl.currentTime = 0;
       audioEl.play().then(() => {
+        // Recalculate once more in case duration just became available
+        if (audioEl.duration && isFinite(audioEl.duration)) {
+          currentWords = generateNaturalWordTimings(pages[currentPage].text, audioEl.duration);
+        }
         const syncLoop = () => {
           if (!isPlaying) return;
           const t = audioEl.currentTime;
-          const activeIdx = words.findIndex(w => t >= w.start && t <= w.end);
+          // Find the word whose window matches current audio time
+          let activeIdx = currentWords.findIndex((w, i) => {
+            const nextStart = currentWords[i + 1] ? currentWords[i + 1].start : w.end + 0.2;
+            return t >= w.start && t < nextStart;
+          });
           highlightWord(activeIdx);
           if (!audioEl.paused && !audioEl.ended) {
             requestAnimationFrame(syncLoop);
@@ -608,15 +594,16 @@
         requestAnimationFrame(syncLoop);
         audioEl.onended = () => stopNarration();
       }).catch(() => {
+        // Fallback Demo Mode (for Pages 3-5 before MP3s are uploaded)
         const scale = [523.25, 587.33, 659.25, 783.99, 880.00, 783.99, 659.25, 587.33];
-        words.forEach((w, idx) => {
+        currentWords.forEach((w, idx) => {
           const t1 = setTimeout(() => {
             highlightWord(idx);
             playSoundFX('word-pluck', scale[idx % scale.length]);
           }, w.start * 1000);
           demoTimers.push(t1);
         });
-        const lastEnd = words[words.length - 1].end;
+        const lastEnd = currentWords[currentWords.length - 1].end;
         const tEnd = setTimeout(() => stopNarration(), lastEnd * 1000 + 250);
         demoTimers.push(tEnd);
       });
