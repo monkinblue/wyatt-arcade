@@ -3,17 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Google Kids Space - Custom Demo</title>
+  <title>Wyatt & Emma's Learning Space</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
     body {
       font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
       background: linear-gradient(180deg, #E2F1FF 0%, #F5FAFF 55%, #D8F3DC 100%);
       height: 100vh; width: 100vw; overflow: hidden;
       display: flex; flex-direction: column;
     }
-    /* Top Header & Profile Switcher */
     header {
       display: flex; justify-content: space-between; align-items: center;
       padding: 18px 36px;
@@ -38,7 +37,6 @@
     }
     .prof-btn.active { background: #1D3557; color: #fff; }
 
-    /* Google Kids Space Pill Navigation */
     nav {
       display: flex; justify-content: center; gap: 16px; margin-bottom: 18px;
     }
@@ -53,7 +51,6 @@
       box-shadow: 0 8px 20px rgba(255,159,28,0.35);
     }
 
-    /* Main Card Grid */
     main {
       flex: 1; padding: 10px 36px 28px;
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px;
@@ -75,10 +72,14 @@
       position: absolute; top: 28px; right: 28px; background: rgba(255,255,255,0.92);
       padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; color: #1D3557;
     }
+    .ready-pill {
+      position: absolute; top: 28px; left: 28px; background: #06D6A0; color: #fff;
+      padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 700;
+      box-shadow: 0 4px 10px rgba(6,214,160,0.4);
+    }
     .card-title { font-size: 22px; font-weight: 700; color: #1D3557; margin-bottom: 4px; }
     .card-sub { font-size: 15px; color: #6C757D; }
 
-    /* Demo Modal */
     #modal {
       display: none; position: fixed; inset: 0; background: rgba(29,53,87,0.75);
       align-items: center; justify-content: center; z-index: 100;
@@ -135,13 +136,13 @@
       <div class="modal-icon" id="m-icon">🎈</div>
       <div class="modal-title" id="m-title">Game Title</div>
       <div class="modal-desc" id="m-desc">Description</div>
-      <button class="play-btn" onclick="closeModal()">▶ Start Activity</button>
+      <button class="play-btn" id="m-btn" onclick="launchActivity()">▶ Start Activity</button>
     </div>
   </div>
 
   <script>
     const items = [
-      { type: 'play', icon: '🎈', bg: '#FF6B6B', badge: 'Letters & Phonics', title: 'Balloon Letter Pop', sub: 'Pop floating letters & hear sounds', desc: 'Custom phonics game tailored to the letters in Wyatt & Emma\'s names.' },
+      { type: 'play', icon: '🎈', bg: '#FF6B6B', badge: 'Letters & Phonics', title: 'Balloon Letter Pop', sub: 'Pop floating letters & hear sounds', desc: 'Custom phonics game tailored to the letters in Wyatt & Emma\'s names.', url: 'balloon-pop.html' },
       { type: 'read', icon: '🏕️', bg: '#4ECDC4', badge: 'Read-Aloud eBook', title: 'Camping at the Lake', sub: 'Interactive family story', desc: 'A custom illustrated storybook with Dad & Mom\'s recorded voices reading every page.' },
       { type: 'play', icon: '🚀', bg: '#FFD166', badge: 'Numbers & Counting', title: 'Rocket Count 1-20', sub: 'Count stars to blast off', desc: 'Touch-friendly counting puzzles that automatically adjust difficulty for age 3 vs. age 4.' },
       { type: 'read', icon: '🏊‍♀️', bg: '#4EA8DE', badge: 'Read-Aloud eBook', title: 'Splash in the Pool!', sub: 'Tap words to hear them read', desc: 'Interactive swimming adventure book with big tap-to-speak sight words.' },
@@ -152,6 +153,8 @@
     ];
 
     let currentTab = 'all';
+    let activeKid = localStorage.getItem('activeKid') || 'wyatt';
+    let selectedItem = null;
 
     function render() {
       const grid = document.getElementById('grid');
@@ -162,6 +165,7 @@
         card.className = 'card';
         card.onclick = () => openModal(item);
         card.innerHTML = `
+          ${item.url ? '<div class="ready-pill">★ PLAY NOW</div>' : ''}
           <div class="badge">${item.badge}</div>
           <div class="card-art" style="background:${item.bg}">${item.icon}</div>
           <div>
@@ -181,6 +185,8 @@
     }
 
     function setProfile(who) {
+      activeKid = who;
+      localStorage.setItem('activeKid', who);
       const isEmma = who === 'emma';
       document.getElementById('btn-wyatt').classList.toggle('active', !isEmma);
       document.getElementById('btn-emma').classList.toggle('active', isEmma);
@@ -193,9 +199,11 @@
     }
 
     function openModal(item) {
+      selectedItem = item;
       document.getElementById('m-icon').textContent = item.icon;
       document.getElementById('m-title').textContent = item.title;
       document.getElementById('m-desc').textContent = item.desc;
+      document.getElementById('m-btn').textContent = item.url ? '▶ Start Activity' : '🚧 Coming Soon!';
       document.getElementById('modal').style.display = 'flex';
     }
 
@@ -203,6 +211,15 @@
       document.getElementById('modal').style.display = 'none';
     }
 
+    function launchActivity() {
+      if (selectedItem && selectedItem.url) {
+        window.location.href = `${selectedItem.url}?kid=${activeKid}`;
+      } else {
+        closeModal();
+      }
+    }
+
+    setProfile(activeKid);
     render();
   </script>
 </body>
