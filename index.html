@@ -160,4 +160,39 @@
         card.innerHTML = `
           <div class="status-pill ${isReady ? '' : 'soon'}">${isReady ? '▶ PLAY NOW' : '🔒 Coming Soon'}</div>
           <div class="badge">${item.badge}</div>
-          <div class="card-art" style="background:${item
+          <div class="card-art" style="background:${item.bg}">${item.icon}</div>
+          <div>
+            <div class="card-title">${item.title}</div>
+            <div class="card-sub">${item.sub}</div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function filterTab(tab, el) {
+      currentTab = tab;
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      render();
+    }
+
+    function setProfile(who) {
+      activeKid = who;
+      localStorage.setItem('activeKid', who);
+      const isEmma = who === 'emma';
+      document.getElementById('btn-wyatt').classList.toggle('active', !isEmma);
+      document.getElementById('btn-emma').classList.toggle('active', isEmma);
+      document.getElementById('avatar').textContent = isEmma ? '🦄' : '🦖';
+      document.getElementById('avatar').style.background = isEmma ? '#F15BB5' : '#4EA8DE';
+      document.getElementById('greeting').textContent = isEmma ? 'Hi, Emma!' : 'Hi, Wyatt!';
+      document.getElementById('subgreeting').textContent = isEmma
+        ? "Dad's Custom Learning Space • Age 3 Mode"
+        : "Dad's Custom Learning Space • Age 4 Mode";
+    }
+
+    setProfile(activeKid);
+    render();
+  </script>
+</body>
+</html>
