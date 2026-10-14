@@ -7,72 +7,128 @@
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
-    body {
+    html, body {
       font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
-      height: 100vh; width: 100vw; overflow: hidden;
-      display: flex; flex-direction: column;
+      height: 100%; width: 100%; overflow: hidden;
       background: #1D3557;
       touch-action: manipulation;
     }
 
-    /* Top Storybook HUD */
+    /* Fullscreen Interactive Stage */
+    #stage-wrap {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 24px 20px;
+      transition: background 0.6s ease;
+      background: linear-gradient(180deg, #70D6FF 0%, #BDE0FE 58%, #8AC926 58%, #52B788 100%);
+    }
+
+    /* Top Navigation & Backpack HUD */
     header {
-      position: absolute; top: 16px; left: 24px; right: 24px; z-index: 50;
       display: flex; justify-content: space-between; align-items: center;
-      pointer-events: none;
+      z-index: 60; flex-shrink: 0;
     }
     .hud-btn, .backpack-bar {
-      pointer-events: auto;
-      background: rgba(255,255,255,0.94); border: 4px solid #fff;
-      padding: 10px 22px; border-radius: 40px; font-size: 20px; font-weight: 700;
-      color: #1D3557; box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+      background: rgba(255,255,255,0.95); border: 4px solid #fff;
+      padding: 8px 20px; border-radius: 40px; font-size: 19px; font-weight: 700;
+      color: #1D3557; box-shadow: 0 6px 16px rgba(0,0,0,0.16);
       display: flex; align-items: center; gap: 10px; cursor: pointer;
-      text-decoration: none; transition: transform 0.15s;
+      text-decoration: none;
     }
-    .hud-btn:active { transform: scale(0.94); }
-    .backpack-bar {
-      background: #FFD166; padding: 8px 20px; gap: 12px;
-    }
+    .backpack-bar { background: #FFD166; padding: 6px 18px; }
     .pack-slot {
-      width: 42px; height: 42px; border-radius: 50%;
-      background: rgba(255,255,255,0.85); border: 2px dashed #1D3557;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: #fff; border: 2px solid #1D3557;
       display: flex; align-items: center; justify-content: center;
-      font-size: 24px; cursor: pointer; transition: transform 0.2s;
+      font-size: 22px; cursor: pointer;
     }
-    .pack-slot.filled { border-style: solid; background: #fff; }
-    .pack-slot:active { transform: scale(1.2); }
 
-    /* Interactive Stage (Living Book Canvas) */
+    /* STORYBOOK PAGE CARD (Unmissable & Never Cut Off!) */
+    .story-card {
+      position: relative; z-index: 50;
+      background: #FFFDF7;
+      border: 6px solid #FFD166;
+      border-radius: 32px;
+      padding: 16px 24px;
+      max-width: 1050px; width: 100%;
+      margin: 8px auto 0;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.22);
+      display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      flex-shrink: 0;
+    }
+    .nav-arrow {
+      background: #4EA8DE; color: #fff; border: none;
+      width: 60px; height: 60px; border-radius: 50%; font-size: 28px;
+      font-weight: 700; cursor: pointer; box-shadow: 0 5px 0 #1D3557;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: transform 0.1s;
+    }
+    .nav-arrow:active { transform: translateY(3px); box-shadow: 0 2px 0 #1D3557; }
+    .nav-arrow:disabled { background: #CBD5E1; box-shadow: none; cursor: not-allowed; opacity: 0.45; }
+
+    .story-content {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .story-toolbar {
+      display: flex; align-items: center; gap: 14px;
+    }
+    .read-btn {
+      background: #06D6A0; color: #fff; border: none;
+      padding: 7px 22px; border-radius: 30px; font-family: inherit;
+      font-size: 18px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 0 #049A72; display: flex; align-items: center; gap: 8px;
+    }
+    .read-btn.playing { background: #FF9F1C; box-shadow: 0 4px 0 #CC7A00; }
+    .page-indicator {
+      font-size: 15px; font-weight: 700; color: #457B9D;
+      background: #E2F1FF; padding: 5px 14px; border-radius: 20px;
+    }
+
+    /* Word-by-Word Interactive Text */
+    .sentence-box {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 6px 8px; line-height: 1.35; text-align: center;
+    }
+    .story-word {
+      font-size: 27px; font-weight: 700; color: #1D3557;
+      padding: 3px 8px; border-radius: 12px; cursor: pointer;
+      transition: all 0.15s ease; border: 3px solid transparent;
+    }
+    .story-word:hover { background: #E2F1FF; }
+    .story-word.highlight {
+      background: #FFE66D; color: #D62828; border-color: #FF9F1C;
+      transform: scale(1.14) translateY(-3px);
+      box-shadow: 0 6px 14px rgba(255, 159, 28, 0.35);
+    }
+
+    /* Interactive Scenery Playground */
     #stage {
-      flex: 1; position: relative; overflow: hidden;
-      transition: background 0.6s ease;
+      flex: 1; position: relative; width: 100%;
     }
 
-    /* Living Scenery Props */
     .prop {
       position: absolute; cursor: pointer;
       display: flex; flex-direction: column; align-items: center;
       transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      z-index: 10;
+      z-index: 20;
     }
     .prop-art {
-      font-size: 88px; line-height: 1;
-      filter: drop-shadow(0 10px 12px rgba(0,0,0,0.18));
+      font-size: 86px; line-height: 1;
+      filter: drop-shadow(0 10px 12px rgba(0,0,0,0.2));
     }
     .prop-label {
-      margin-top: 4px; background: rgba(255,255,255,0.9);
+      margin-top: 4px; background: rgba(255,255,255,0.92);
       padding: 4px 12px; border-radius: 16px; font-size: 15px;
-      font-weight: 700; color: #1D3557; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-      opacity: 0.9;
+      font-weight: 700; color: #1D3557; box-shadow: 0 4px 8px rgba(0,0,0,0.12);
     }
     .prop.bounce { animation: propBounce 0.6s ease; }
     .prop.spin   { animation: propSpin 0.7s ease; }
     .prop.shake  { animation: propShake 0.5s ease; }
-    .prop.float  { animation: propFloat 3s ease-in-out infinite; }
 
     @keyframes propBounce {
       0%, 100% { transform: translateY(0) scale(1); }
-      40% { transform: translateY(-45px) scale(1.22); }
+      40% { transform: translateY(-40px) scale(1.22); }
       70% { transform: translateY(-10px) scale(0.95); }
     }
     @keyframes propSpin {
@@ -82,141 +138,111 @@
     }
     @keyframes propShake {
       0%, 100% { transform: translateX(0); }
-      25% { transform: translateX(-18px) rotate(-8deg); }
-      75% { transform: translateX(18px) rotate(8deg); }
-    }
-    @keyframes propFloat {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-14px); }
+      25% { transform: translateX(-16px) rotate(-8deg); }
+      75% { transform: translateX(16px) rotate(8deg); }
     }
 
-    /* Floating speech/sound bubble when a prop is tapped */
     .fx-bubble {
-      position: absolute; z-index: 40; pointer-events: none;
+      position: absolute; z-index: 80; pointer-events: none;
       background: #fff; color: #1D3557; border: 4px solid #FF9F1C;
-      padding: 8px 18px; border-radius: 28px; font-size: 24px; font-weight: 700;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      padding: 8px 18px; border-radius: 28px; font-size: 22px; font-weight: 700;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.22);
       animation: floatUp 1.1s ease-out forwards;
     }
     @keyframes floatUp {
       0% { transform: translateY(0) scale(0.6); opacity: 1; }
-      40% { transform: translateY(-30px) scale(1.1); opacity: 1; }
-      100% { transform: translateY(-65px) scale(1); opacity: 0; }
+      40% { transform: translateY(-25px) scale(1.08); opacity: 1; }
+      100% { transform: translateY(-55px) scale(1); opacity: 0; }
     }
 
-    /* Gear Picker Overlay (Page 2 Choose Your Own Adventure) */
+    /* Gear Picker Tray on Page 2 */
     .gear-tray {
-      position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%);
-      background: rgba(255,255,255,0.95); border: 6px solid #FFD166;
-      border-radius: 36px; padding: 22px 32px; z-index: 30;
-      text-align: center; box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+      position: absolute; top: 48%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.96); border: 6px solid #FFD166;
+      border-radius: 32px; padding: 18px 28px; z-index: 40;
+      text-align: center; box-shadow: 0 18px 40px rgba(0,0,0,0.28);
     }
-    .gear-title { font-size: 24px; color: #1D3557; margin-bottom: 14px; font-weight: 700; }
-    .gear-grid { display: flex; gap: 18px; justify-content: center; }
+    .gear-title { font-size: 22px; color: #1D3557; margin-bottom: 12px; font-weight: 700; }
+    .gear-grid { display: flex; gap: 14px; justify-content: center; }
     .gear-card {
-      background: #F5FAFF; border: 4px solid #BDE0FE; border-radius: 24px;
-      padding: 14px 20px; width: 140px; cursor: pointer; transition: all 0.2s;
+      background: #F5FAFF; border: 4px solid #BDE0FE; border-radius: 22px;
+      padding: 10px 16px; width: 130px; cursor: pointer; transition: all 0.2s;
     }
     .gear-card.selected {
-      background: #D8F3DC; border-color: #06D6A0; transform: translateY(-6px) scale(1.05);
-      box-shadow: 0 8px 20px rgba(6,214,160,0.35);
+      background: #D8F3DC; border-color: #06D6A0; transform: translateY(-5px);
+      box-shadow: 0 8px 18px rgba(6,214,160,0.35);
     }
-    .gear-icon { font-size: 54px; margin-bottom: 6px; }
-    .gear-name { font-size: 17px; font-weight: 700; color: #1D3557; }
-
-    /* Bottom Storybook Text & Controls Bar */
-    footer {
-      background: #fff; border-top: 6px solid #FFD166;
-      padding: 18px 32px; display: flex; align-items: center;
-      justify-content: space-between; gap: 24px; z-index: 50;
-      min-height: 148px; box-shadow: 0 -10px 30px rgba(0,0,0,0.12);
-    }
-    .nav-arrow {
-      background: #4EA8DE; color: #fff; border: none;
-      width: 68px; height: 68px; border-radius: 50%; font-size: 32px;
-      font-weight: 700; cursor: pointer; box-shadow: 0 6px 0 #1D3557;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; transition: transform 0.1s;
-    }
-    .nav-arrow:active { transform: translateY(4px); box-shadow: 0 2px 0 #1D3557; }
-    .nav-arrow:disabled { background: #CBD5E1; box-shadow: none; cursor: not-allowed; opacity: 0.5; }
-
-    .story-center {
-      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px;
-    }
-    .read-controls {
-      display: flex; align-items: center; gap: 12px;
-    }
-    .read-btn {
-      background: #06D6A0; color: #fff; border: none;
-      padding: 8px 22px; border-radius: 30px; font-family: inherit;
-      font-size: 18px; font-weight: 700; cursor: pointer;
-      box-shadow: 0 4px 0 #049A72; display: flex; align-items: center; gap: 8px;
-    }
-    .read-btn.playing { background: #FF9F1C; box-shadow: 0 4px 0 #CC7A00; }
-    .page-indicator { font-size: 16px; font-weight: 700; color: #6C757D; }
-
-    /* Interactive Word-by-Word Sentence Box */
-    .sentence-box {
-      display: flex; flex-wrap: wrap; justify-content: center;
-      gap: 10px 12px; max-width: 920px; line-height: 1.35;
-    }
-    .story-word {
-      font-size: 32px; font-weight: 700; color: #1D3557;
-      padding: 4px 10px; border-radius: 14px; cursor: pointer;
-      transition: all 0.15s ease; border: 3px solid transparent;
-    }
-    .story-word:hover { background: #E2F1FF; }
-    /* Active Highlight synced to ElevenLabs Timestamp! */
-    .story-word.highlight {
-      background: #FFE66D; color: #D62828; border-color: #FF9F1C;
-      transform: scale(1.14) translateY(-4px);
-      box-shadow: 0 6px 14px rgba(255, 159, 28, 0.35);
-    }
+    .gear-icon { font-size: 46px; margin-bottom: 4px; }
+    .gear-name { font-size: 16px; font-weight: 700; color: #1D3557; }
   </style>
 </head>
 <body>
 
-  <header>
-    <a href="index.html" class="hud-btn">🏠 Library</a>
-
-    <div class="backpack-bar" title="Tap packed gear to use it!">
-      🎒 Gear:
-      <div class="pack-slot" id="slot-0" onclick="usePackedGear(0)">❔</div>
-      <div class="pack-slot" id="slot-1" onclick="usePackedGear(1)">❔</div>
-    </div>
-  </header>
-
-  <div id="stage"></div>
-
-  <footer>
-    <button class="nav-arrow" id="prev-btn" onclick="changePage(-1)">◀</button>
-
-    <div class="story-center">
-      <div class="read-controls">
-        <button class="read-btn" id="read-btn" onclick="playPageNarration()">🔊 Read to Me</button>
-        <span class="page-indicator" id="page-num">Page 1 of 5</span>
+  <div id="stage-wrap">
+    <header>
+      <a href="index.html" class="hud-btn">🏠 Library</a>
+      <div class="backpack-bar">
+        🎒 Adventure Gear:
+        <div class="pack-slot" id="slot-0" onclick="usePackedGear(0)">🔦</div>
+        <div class="pack-slot" id="slot-1" onclick="usePackedGear(1)">🌻</div>
       </div>
-      <div class="sentence-box" id="sentence-box"></div>
+    </header>
+
+    <!-- STORYBOOK WORDS CARD (Right near the top so it is NEVER hidden!) -->
+    <div class="story-card">
+      <button class="nav-arrow" id="prev-btn" onclick="changePage(-1)">◀</button>
+
+      <div class="story-content">
+        <div class="story-toolbar">
+          <button class="read-btn" id="read-btn" onclick="playPageNarration()">🔊 Read to Me</button>
+          <span class="page-indicator" id="page-num">Page 1 of 5 • Tap any word or picture!</span>
+        </div>
+        <div class="sentence-box" id="sentence-box">
+          <span class="story-word">One</span>
+          <span class="story-word">sunny</span>
+          <span class="story-word">morning,</span>
+          <span class="story-word">Wyatt</span>
+          <span class="story-word">and</span>
+          <span class="story-word">Emma</span>
+          <span class="story-word">traded</span>
+          <span class="story-word">their</span>
+          <span class="story-word">silly</span>
+          <span class="story-word">spotted</span>
+          <span class="story-word">cow</span>
+          <span class="story-word">for</span>
+          <span class="story-word">five</span>
+          <span class="story-word">magic</span>
+          <span class="story-word">glowing</span>
+          <span class="story-word">beans!</span>
+        </div>
+      </div>
+
+      <button class="nav-arrow" id="next-btn" onclick="changePage(1)">▶</button>
     </div>
 
-    <button class="nav-arrow" id="next-btn" onclick="changePage(1)">▶</button>
-  </footer>
+    <!-- LIVING SCENE PLAYGROUND -->
+    <div id="stage"></div>
+  </div>
 
-  <!-- Hidden HTML5 Audio Element for ElevenLabs MP3s -->
   <audio id="page-audio" preload="auto"></audio>
 
   <script>
-    // =========================================================================
-    // ELEVENLABS TIMESTAMP CONVERTER
-    // Supports BOTH word-level arrays AND raw ElevenLabs character `alignment` JSON!
-    // =========================================================================
-    function parseElevenLabsAlignment(alignment) {
-      // If already a word array: [{ word: "Wyatt", start: 0.0, end: 0.42 }, ...]
-      if (Array.isArray(alignment)) return alignment;
+    // Helper: Turns a story text string into automatic timestamps until you paste ElevenLabs JSON!
+    function buildWordsWithDefaultTimestamps(text) {
+      const rawWords = text.split(' ');
+      let time = 0.15;
+      return rawWords.map(w => {
+        const duration = Math.max(0.32, w.length * 0.065);
+        const start = Number(time.toFixed(2));
+        const end = Number((time + duration).toFixed(2));
+        time = end + 0.06;
+        return { word: w, start, end };
+      });
+    }
 
-      // Convert ElevenLabs raw character alignment:
-      // { characters: [...], character_start_times_seconds: [...], character_end_times_seconds: [...] }
+    // Also supports pasting raw ElevenLabs character alignment JSON!
+    function parseElevenLabsAlignment(alignment) {
+      if (Array.isArray(alignment)) return alignment;
       const chars = alignment.characters || [];
       const starts = alignment.character_start_times_seconds || [];
       const ends = alignment.character_end_times_seconds || [];
@@ -245,139 +271,82 @@
       return words;
     }
 
-    // Available Adventure Gear for Page 2
     const gearCatalog = [
-      { id: 'flashlight', icon: '🔦', name: 'Flashlight', msg: 'FLASH! Bright beam!', freq: 880 },
+      { id: 'flashlight', icon: '🔦', name: 'Flashlight', msg: 'FLASH! Super bright beam!', freq: 880 },
       { id: 'dino',       icon: '🦖', name: 'Toy Dino',   msg: 'ROOOAR! Dino power!', freq: 180 },
       { id: 'wand',       icon: '🌻', name: 'Sunflower Wand', msg: '✨ Sparkle Magic! ✨', freq: 1046 },
       { id: 'cookie',     icon: '🍪', name: 'Giant Cookie', msg: 'CRUNCH! Yum yum!', freq: 440 }
     ];
-    let packedGear = ['flashlight', 'wand']; // Default 2 items
+    let packedGear = ['flashlight', 'wand'];
 
-    // =========================================================================
-    // STORYBOOK PAGES (With ElevenLabs MP3 paths + Word Timestamp Arrays)
-    // Drop `audio/beanstalk-p1.mp3` etc. into your repo when ready!
-    // =========================================================================
     const pages = [
       {
-        bg: 'linear-gradient(180deg, #70D6FF 0%, #BDE0FE 55%, #8AC926 55%, #52B788 100%)',
+        bg: 'linear-gradient(180deg, #70D6FF 0%, #BDE0FE 58%, #8AC926 58%, #52B788 100%)',
         audioUrl: 'audio/beanstalk-p1.mp3',
-        words: [
-          { word: 'Wyatt',    start: 0.10, end: 0.55 },
-          { word: 'and',      start: 0.56, end: 0.80 },
-          { word: 'Emma',     start: 0.81, end: 1.25 },
-          { word: 'traded',   start: 1.26, end: 1.75 },
-          { word: 'their',    start: 1.76, end: 2.05 },
-          { word: 'funny',    start: 2.06, end: 2.50 },
-          { word: 'cow',      start: 2.51, end: 2.95 },
-          { word: 'for',      start: 2.96, end: 3.20 },
-          { word: 'five',     start: 3.21, end: 3.65 },
-          { word: 'magic',    start: 3.66, end: 4.15 },
-          { word: 'glowing',  start: 4.16, end: 4.65 },
-          { word: 'beans!',   start: 4.66, end: 5.25 }
-        ],
+        words: buildWordsWithDefaultTimestamps(
+          "One sunny morning, Wyatt and Emma traded their silly spotted cow for five magic glowing beans! They planted them right beside the garden fence."
+        ),
         props: [
-          { icon: '🏡', label: 'Cottage', x: '12%', y: '28%', anim: 'shake', msg: 'Knock knock! Nobody home!', sound: 'knock' },
-          { icon: '🐄', label: 'Daisy the Cow', x: '38%', y: '36%', anim: 'bounce', msg: 'MOOOOO! 🥛', sound: 'moo' },
-          { icon: '👦🏻', label: 'Wyatt', x: '62%', y: '40%', anim: 'bounce', msg: 'Whoa! Look at those beans!', sound: 'jump' },
-          { icon: '👧🏻', label: 'Emma', x: '74%', y: '42%', anim: 'bounce', msg: 'They are so shiny! ✨', sound: 'chime' },
-          { icon: '🫘', label: 'Magic Beans', x: '52%', y: '62%', anim: 'spin', msg: '✨ ZZZAP! Magic Bean Power! ✨', sound: 'magic' }
+          { icon: '🏡', label: 'Family Cottage', x: '10%', y: '22%', anim: 'shake', msg: 'Knock knock! Time for an adventure!', sound: 'knock' },
+          { icon: '🐄', label: 'Daisy the Cow', x: '34%', y: '32%', anim: 'bounce', msg: 'MOOOOO! Good luck with those beans! 🥛', sound: 'moo' },
+          { icon: '👦🏻', label: 'Wyatt', x: '58%', y: '35%', anim: 'bounce', msg: 'Whoa! Look how shiny they are!', sound: 'jump' },
+          { icon: '👧🏻', label: 'Emma', x: '74%', y: '38%', anim: 'bounce', msg: 'Let\'s plant them right here! ✨', sound: 'chime' },
+          { icon: '🫘', label: 'Magic Beans', x: '48%', y: '60%', anim: 'spin', msg: '✨ ZZZAP! Magic Bean Power! ✨', sound: 'magic' }
         ]
       },
       {
-        bg: 'linear-gradient(180deg, #1D3557 0%, #457B9D 55%, #2D6A4F 55%, #1B4332 100%)',
+        bg: 'linear-gradient(180deg, #1D3557 0%, #457B9D 58%, #2D6A4F 58%, #1B4332 100%)',
         audioUrl: 'audio/beanstalk-p2.mp3',
         isGearPage: true,
-        words: [
-          { word: 'Overnight,', start: 0.10, end: 0.75 },
-          { word: 'a',          start: 0.76, end: 0.95 },
-          { word: 'giant',      start: 0.96, end: 1.45 },
-          { word: 'beanstalk',  start: 1.46, end: 2.15 },
-          { word: 'grew!',      start: 2.16, end: 2.65 },
-          { word: 'Pick',       start: 2.80, end: 3.15 },
-          { word: 'two',        start: 3.16, end: 3.50 },
-          { word: 'items',      start: 3.51, end: 3.95 },
-          { word: 'for',        start: 3.96, end: 4.20 },
-          { word: 'your',       start: 4.21, end: 4.50 },
-          { word: 'backpack!',  start: 4.51, end: 5.20 }
-        ],
+        words: buildWordsWithDefaultTimestamps(
+          "That night while the moon shone bright, a giant green beanstalk sprouted all the way into the clouds! Pick two items to pack in your backpack before you climb!"
+        ),
         props: [
-          { icon: '🌙', label: 'Sleepy Moon', x: '12%', y: '12%', anim: 'spin', msg: 'Yaaaawn! Goodnight!', sound: 'chime' },
-          { icon: '🌱', label: 'Giant Stalk', x: '84%', y: '25%', anim: 'bounce', msg: 'SPROING! Growing to the sky!', sound: 'jump' },
-          { icon: '🦉', label: 'Night Owl', x: '15%', y: '45%', anim: 'bounce', msg: 'HOO-HOO! Pack wisely!', sound: 'hoot' }
+          { icon: '🌙', label: 'Sleepy Moon', x: '8%', y: '10%', anim: 'spin', msg: 'Yaaaawn! Have a safe climb!', sound: 'chime' },
+          { icon: '🌱', label: 'Giant Stalk', x: '84%', y: '28%', anim: 'bounce', msg: 'SPROING! Growing higher and higher!', sound: 'jump' },
+          { icon: '🦉', label: 'Night Owl', x: '12%', y: '52%', anim: 'bounce', msg: 'HOO-HOO! Pack your best gear!', sound: 'hoot' }
         ]
       },
       {
         bg: 'linear-gradient(180deg, #48CAE4 0%, #90E0EF 50%, #CAF0F8 100%)',
         audioUrl: 'audio/beanstalk-p3.mp3',
-        words: [
-          { word: 'Up,',     start: 0.10, end: 0.45 },
-          { word: 'up,',     start: 0.46, end: 0.85 },
-          { word: 'up',      start: 0.86, end: 1.15 },
-          { word: 'they',    start: 1.16, end: 1.45 },
-          { word: 'climbed', start: 1.46, end: 1.95 },
-          { word: 'through', start: 1.96, end: 2.30 },
-          { word: 'the',     start: 2.31, end: 2.50 },
-          { word: 'fluffy',  start: 2.51, end: 2.95 },
-          { word: 'white',   start: 2.96, end: 3.35 },
-          { word: 'clouds!', start: 3.36, end: 4.00 }
-        ],
+        words: buildWordsWithDefaultTimestamps(
+          "Up, up, up they climbed! Higher than the tallest trees and right through the fluffy white clouds until they saw a glittering road in the sky."
+        ),
         props: [
-          { icon: '🌿', label: 'Beanstalk', x: '46%', y: '18%', anim: 'shake', msg: 'Rustle rustle! Keep climbing!', sound: 'jump' },
-          { icon: '🌿', label: 'Vine Step', x: '46%', y: '48%', anim: 'shake', msg: 'Almost at the top!', sound: 'jump' },
-          { icon: '👦🏻', label: 'Wyatt Climbing', x: '36%', y: '28%', anim: 'bounce', msg: 'I can see our house from here!', sound: 'chime' },
-          { icon: '👧🏻', label: 'Emma Climbing', x: '56%', y: '42%', anim: 'bounce', msg: 'Wait for me, Wyatt!', sound: 'chime' },
-          { icon: '☁️', label: 'Tickle Cloud', x: '16%', y: '26%', anim: 'bounce', msg: '⚡ RUMBLE! Tickle cloud!', sound: 'magic' },
-          { icon: '🌈', label: 'Rainbow', x: '78%', y: '22%', anim: 'spin', msg: '✨ Rainbow Slide! ✨', sound: 'magic' }
+          { icon: '🌿', label: 'Giant Vine', x: '46%', y: '15%', anim: 'shake', msg: 'Rustle rustle! Big leafy steps!', sound: 'jump' },
+          { icon: '🌿', label: 'Leafy Step', x: '46%', y: '55%', anim: 'shake', msg: 'Hold on tight!', sound: 'jump' },
+          { icon: '👦🏻', label: 'Wyatt Climbing', x: '34%', y: '25%', anim: 'bounce', msg: 'I can see our backyard from way up here!', sound: 'chime' },
+          { icon: '👧🏻', label: 'Emma Climbing', x: '58%', y: '42%', anim: 'bounce', msg: 'The clouds feel like cotton candy!', sound: 'chime' },
+          { icon: '☁️', label: 'Tickle Cloud', x: '14%', y: '30%', anim: 'bounce', msg: '⚡ PFFFT! Fluffy cloud puff!', sound: 'magic' },
+          { icon: '🌈', label: 'Sky Rainbow', x: '78%', y: '20%', anim: 'spin', msg: '✨ Sliding across the sky! ✨', sound: 'harp' }
         ]
       },
       {
-        bg: 'linear-gradient(180deg, #CDB4DB 0%, #FFC8DD 55%, #FFAFCC 100%)',
+        bg: 'linear-gradient(180deg, #CDB4DB 0%, #FFC8DD 58%, #FFAFCC 100%)',
         audioUrl: 'audio/beanstalk-p4.mp3',
         isCastlePage: true,
-        words: [
-          { word: 'Inside',   start: 0.10, end: 0.60 },
-          { word: 'the',      start: 0.61, end: 0.80 },
-          { word: 'cloud',    start: 0.81, end: 1.25 },
-          { word: 'castle,',  start: 1.26, end: 1.85 },
-          { word: 'a',        start: 1.86, end: 2.00 },
-          { word: 'sleepy',   start: 2.01, end: 2.50 },
-          { word: 'Giant',    start: 2.51, end: 3.00 },
-          { word: 'snored',   start: 3.01, end: 3.55 },
-          { word: 'next',     start: 3.56, end: 3.90 },
-          { word: 'to',       start: 3.91, end: 4.10 },
-          { word: 'magic',    start: 4.11, end: 4.55 },
-          { word: 'treasures!', start: 4.56, end: 5.30 }
-        ],
+        words: buildWordsWithDefaultTimestamps(
+          "At the top stood a tremendous Cloud Castle! Inside, a sleepy Giant snored loudly at his table beside a singing Golden Harp and a friendly Golden Goose. Tap your packed gear to use it!"
+        ),
         props: [
-          { icon: '🏰', label: 'Cloud Castle', x: '12%', y: '20%', anim: 'shake', msg: 'BOOM! Giant footsteps!', sound: 'moo' },
-          { icon: '🧔‍♂️', label: 'Sleepy Giant', x: '34%', y: '30%', anim: 'bounce', msg: 'FEE-FI-FO-FUM... Zzzzz! 💤', sound: 'moo' },
-          { icon: '🪿', label: 'Golden Goose', x: '60%', y: '38%', anim: 'bounce', msg: 'HONK! Laid a Golden Egg! 🥚✨', sound: 'magic' },
-          { icon: '🪕', label: 'Magic Harp', x: '80%', y: '32%', anim: 'spin', msg: '🎵 Pluck! Pluck! Golden song! 🎵', sound: 'harp' }
+          { icon: '🏰', label: 'Cloud Castle', x: '10%', y: '22%', anim: 'shake', msg: 'BOOM! Everything inside is huge!', sound: 'moo' },
+          { icon: '🧔‍♂️', label: 'Sleepy Giant', x: '32%', y: '28%', anim: 'bounce', msg: 'FEE-FI-FO-FUM... Zzzzzzz! 💤', sound: 'moo' },
+          { icon: '🪿', label: 'Golden Goose', x: '58%', y: '30%', anim: 'bounce', msg: 'HONK! Take me home with you! 🥚✨', sound: 'magic' },
+          { icon: '🪕', label: 'Magic Harp', x: '80%', y: '26%', anim: 'spin', msg: '🎵 Pluck! Pluck! Lullaby for the Giant! 🎵', sound: 'harp' }
         ]
       },
       {
-        bg: 'linear-gradient(180deg, #90E0EF 0%, #D8F3DC 55%, #52B788 55%, #40916C 100%)',
+        bg: 'linear-gradient(180deg, #90E0EF 0%, #D8F3DC 58%, #52B788 58%, #40916C 100%)',
         audioUrl: 'audio/beanstalk-p5.mp3',
-        words: [
-          { word: 'They',    start: 0.10, end: 0.45 },
-          { word: 'slid',    start: 0.46, end: 0.85 },
-          { word: 'down',    start: 0.86, end: 1.25 },
-          { word: 'the',     start: 1.26, end: 1.45 },
-          { word: 'vine',    start: 1.46, end: 1.90 },
-          { word: 'home',    start: 1.91, end: 2.35 },
-          { word: 'to',      start: 2.36, end: 2.55 },
-          { word: 'Dad',     start: 2.56, end: 3.00 },
-          { word: 'with',    start: 3.01, end: 3.30 },
-          { word: 'the',     start: 3.31, end: 3.50 },
-          { word: 'Golden',  start: 3.51, end: 4.00 },
-          { word: 'Goose!',  start: 4.01, end: 4.70 }
-        ],
+        words: buildWordsWithDefaultTimestamps(
+          "With a wiggle and a giggle, Wyatt and Emma zoomed all the way down the beanstalk right into Dad's arms! The Golden Goose honked happily, and they all had golden pancakes for dinner!"
+        ),
         props: [
-          { icon: '👨🏻', label: 'Dad', x: '22%', y: '35%', anim: 'bounce', msg: 'Great job Wyatt & Emma! 🏆', sound: 'harp' },
-          { icon: '👦🏻', label: 'Wyatt', x: '44%', y: '40%', anim: 'bounce', msg: 'We did it! Best adventure ever!', sound: 'jump' },
-          { icon: '👧🏻', label: 'Emma', x: '58%', y: '42%', anim: 'bounce', msg: 'Look at the Golden Goose!', sound: 'chime' },
-          { icon: '🪿', label: 'Golden Goose', x: '76%', y: '38%', anim: 'spin', msg: '🥚✨ Solid Gold Pancakes for everyone!', sound: 'magic' }
+          { icon: '👨🏻', label: 'Dad', x: '18%', y: '35%', anim: 'bounce', msg: 'Welcome back, my brave explorers! 🏆', sound: 'harp' },
+          { icon: '👦🏻', label: 'Wyatt', x: '40%', y: '40%', anim: 'bounce', msg: 'Dad! You won\'t believe what was in the clouds!', sound: 'jump' },
+          { icon: '👧🏻', label: 'Emma', x: '56%', y: '42%', anim: 'bounce', msg: 'We brought home a new friend!', sound: 'chime' },
+          { icon: '🪿', label: 'Golden Goose', x: '76%', y: '36%', anim: 'spin', msg: '🥚✨ Golden pancakes for everyone!', sound: 'magic' }
         ]
       }
     ];
@@ -395,7 +364,6 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    // Rich Synthesized Sound Effects for Living Book Props & Demo Word Plucks
     function playSoundFX(type, customFreq) {
       initAudio();
       const now = audioCtx.currentTime;
@@ -450,7 +418,6 @@
         osc.start(now);
         osc.stop(now + 0.24);
       } else {
-        // Default cheerful chime
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'triangle';
@@ -471,10 +438,6 @@
         const gearObj = gearCatalog.find(g => g.id === packedGear[i]);
         if (gearObj) {
           slot.textContent = gearObj.icon;
-          slot.classList.add('filled');
-        } else {
-          slot.textContent = '❔';
-          slot.classList.remove('filled');
         }
       }
     }
@@ -483,7 +446,7 @@
       const gearObj = gearCatalog.find(g => g.id === packedGear[slotIdx]);
       if (!gearObj) return;
       playSoundFX('magic');
-      spawnBubble(window.innerWidth / 2 - 80, 90, `${gearObj.icon} ${gearObj.msg}`);
+      spawnBubble('42%', '20%', `${gearObj.icon} ${gearObj.msg}`);
     }
 
     function spawnBubble(x, y, text) {
@@ -499,18 +462,17 @@
     function renderPage() {
       stopNarration();
       const page = pages[currentPage];
+      const stageWrap = document.getElementById('stage-wrap');
       const stage = document.getElementById('stage');
-      stage.style.background = page.bg;
+      stageWrap.style.background = page.bg;
       stage.innerHTML = '';
 
-      document.getElementById('page-num').textContent = `Page ${currentPage + 1} of ${pages.length}`;
+      document.getElementById('page-num').textContent = `Page ${currentPage + 1} of ${pages.length} • Tap any word or picture!`;
       document.getElementById('prev-btn').disabled = currentPage === 0;
       document.getElementById('next-btn').disabled = currentPage === pages.length - 1;
 
-      // Render Interactive Props
       const propsToRender = [...page.props];
 
-      // On Page 4 (Castle Page), add the kid's Chosen Adventure Gear right into the scene!
       if (page.isCastlePage) {
         packedGear.forEach((gId, idx) => {
           const g = gearCatalog.find(item => item.id === gId);
@@ -518,8 +480,8 @@
             propsToRender.push({
               icon: g.icon,
               label: `Use ${g.name}!`,
-              x: idx === 0 ? '48%' : '68%',
-              y: '62%',
+              x: idx === 0 ? '42%' : '64%',
+              y: '60%',
               anim: 'spin',
               msg: g.msg,
               sound: 'magic'
@@ -547,7 +509,6 @@
         stage.appendChild(el);
       });
 
-      // On Page 2, show the Choose-Your-Own-Gear selector tray
       if (page.isGearPage) {
         const tray = document.createElement('div');
         tray.className = 'gear-tray';
@@ -556,7 +517,6 @@
         renderGearChoices();
       }
 
-      // Render Word-by-Word Sentence with Timestamp Hooks
       const sentenceBox = document.getElementById('sentence-box');
       sentenceBox.innerHTML = '';
       const words = parseElevenLabsAlignment(page.words);
@@ -566,12 +526,10 @@
         span.className = 'story-word';
         span.id = `word-${idx}`;
         span.textContent = wObj.word;
-        // Tap any single word to slice & play just that word's timestamp!
         span.onclick = () => playSingleWord(idx, wObj);
         sentenceBox.appendChild(span);
       });
 
-      // Point audio player to this page's ElevenLabs MP3
       audioEl.src = page.audioUrl;
       renderBackpack();
     }
@@ -600,7 +558,6 @@
       });
     }
 
-    // Highlight word by index
     function highlightWord(idx) {
       document.querySelectorAll('.story-word').forEach((el, i) => {
         el.classList.toggle('highlight', i === idx);
@@ -624,7 +581,6 @@
       }
     }
 
-    // Plays the full page using ElevenLabs MP3 + Timestamps (or Demo Visual Sync if MP3 isn't uploaded yet)
     function playPageNarration() {
       if (isPlaying) {
         stopNarration();
@@ -640,7 +596,6 @@
 
       audioEl.currentTime = 0;
       audioEl.play().then(() => {
-        // Real ElevenLabs MP3 is playing! Sync highlights via requestAnimationFrame / timeupdate
         const syncLoop = () => {
           if (!isPlaying) return;
           const t = audioEl.currentTime;
@@ -653,8 +608,6 @@
         requestAnimationFrame(syncLoop);
         audioEl.onended = () => stopNarration();
       }).catch(() => {
-        // Fallback Demo Mode when MP3 file isn't in GitHub yet:
-        // Steps through exact ElevenLabs timestamps with a gentle marimba pluck!
         const scale = [523.25, 587.33, 659.25, 783.99, 880.00, 783.99, 659.25, 587.33];
         words.forEach((w, idx) => {
           const t1 = setTimeout(() => {
@@ -669,7 +622,6 @@
       });
     }
 
-    // Slices a single word out of the page's ElevenLabs MP3 using its start/end timestamps!
     function playSingleWord(idx, wObj) {
       stopNarration();
       highlightWord(idx);
@@ -685,7 +637,6 @@
         };
         audioEl.addEventListener('timeupdate', wordStopHandler);
       }).catch(() => {
-        // If MP3 isn't uploaded yet, play gentle chime and highlight for the exact duration of the word
         playSoundFX('chime');
         setTimeout(() => highlightWord(-1), Math.max(400, (wObj.end - wObj.start) * 1000));
       });
