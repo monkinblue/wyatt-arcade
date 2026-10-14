@@ -11,15 +11,39 @@
       font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
       background: linear-gradient(180deg, #8ECAE6 0%, #BDE0FE 65%, #A3E635 100%);
       height: 100vh; width: 100vw; overflow: hidden; position: relative;
-      touch-action: manipulation;
+      touch-action: manipulation; transition: background 0.2s;
     }
 
+    /* Screen Shake & Scary Red Flash for Wrong Balloon! */
+    body.wrong-flash {
+      animation: shake 0.45s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    body.wrong-flash::after {
+      content: ''; position: fixed; inset: 0;
+      background: rgba(239, 71, 111, 0.55);
+      pointer-events: none; z-index: 50;
+    }
+    /* Obvious Green Glow for Correct Balloon! */
+    body.correct-flash::after {
+      content: ''; position: fixed; inset: 0;
+      background: rgba(6, 214, 160, 0.32);
+      pointer-events: none; z-index: 50;
+    }
+
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-10px, 4px, 0); }
+      20%, 80% { transform: translate3d(14px, -6px, 0); }
+      30%, 50%, 70% { transform: translate3d(-18px, 6px, 0); }
+      40%, 60% { transform: translate3d(18px, -4px, 0); }
+    }
+
+    /* Top HUD */
     header {
       position: absolute; top: 16px; left: 24px; right: 24px; z-index: 20;
-      display: flex; justify-content: space-between; align-items: center;
+      display: flex; justify-content: space-between; align-items: flex-start;
       pointer-events: none;
     }
-    .back-btn, .quest-pill, .score-pill {
+    .back-btn, .level-pill {
       pointer-events: auto;
       background: rgba(255,255,255,0.92); border: 4px solid #fff;
       padding: 12px 24px; border-radius: 40px; font-size: 22px; font-weight: 700;
@@ -27,34 +51,41 @@
       display: flex; align-items: center; gap: 10px; cursor: pointer;
       text-decoration: none;
     }
-    .back-btn:active { transform: scale(0.95); }
-    .quest-pill {
-      background: #FFD166; color: #1D3557; font-size: 26px;
-      padding: 12px 32px; cursor: pointer;
-    }
-    .target-letter {
-      background: #fff; color: #EF476F; padding: 4px 16px;
-      border-radius: 20px; font-size: 30px; font-weight: 700;
-    }
 
+    /* Picture Reference Card at Top Center */
+    .ref-card {
+      background: rgba(255,255,255,0.95); border: 5px solid #fff;
+      border-radius: 32px; padding: 10px 32px;
+      display: flex; align-items: center; gap: 18px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.16);
+      transition: transform 0.3s;
+    }
+    .ref-card.bounce { transform: scale(1.12); }
+    .ref-emoji { font-size: 64px; line-height: 1; }
+    .ref-info { display: flex; flex-direction: column; }
+    .ref-label { font-size: 14px; font-weight: 700; color: #457B9D; text-transform: uppercase; letter-spacing: 1px; }
+    .ref-word { font-size: 36px; font-weight: 700; color: #1D3557; letter-spacing: 4px; }
+
+    /* Bottom Letter Slots Bar */
     .name-bar {
       position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-      z-index: 20; background: rgba(255,255,255,0.9); padding: 12px 28px;
-      border-radius: 40px; display: flex; gap: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.15); border: 4px solid #fff;
+      z-index: 20; background: rgba(255,255,255,0.94); padding: 14px 30px;
+      border-radius: 44px; display: flex; gap: 14px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.18); border: 5px solid #fff;
     }
     .name-slot {
-      width: 58px; height: 64px; border-radius: 16px;
-      background: #E2F1FF; border: 3px dashed #4EA8DE;
+      width: 68px; height: 76px; border-radius: 20px;
+      background: #E2F1FF; border: 4px dashed #4EA8DE;
       display: flex; align-items: center; justify-content: center;
-      font-size: 36px; font-weight: 700; color: rgba(29,53,87,0.25);
-      transition: all 0.3s;
+      font-size: 42px; font-weight: 700; color: rgba(29,53,87,0.28);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     .name-slot.filled {
-      background: #06D6A0; border: 3px solid #fff; color: #fff;
-      transform: scale(1.1); box-shadow: 0 4px 12px rgba(6,214,160,0.4);
+      background: #06D6A0; border: 4px solid #fff; color: #fff;
+      transform: scale(1.12); box-shadow: 0 6px 16px rgba(6,214,160,0.5);
     }
 
+    /* Clouds */
     .cloud {
       position: absolute; font-size: 90px; opacity: 0.75; pointer-events: none;
       animation: drift linear infinite;
@@ -64,15 +95,15 @@
       to { transform: translateX(110vw); }
     }
 
+    /* Balloons */
     .balloon {
-      position: absolute; width: 130px; height: 155px;
+      position: absolute; width: 128px; height: 152px;
       border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 64px; font-weight: 700; color: #fff;
+      font-size: 62px; font-weight: 700; color: #fff;
       text-shadow: 0 3px 6px rgba(0,0,0,0.25);
       box-shadow: inset -14px -14px 0 rgba(0,0,0,0.12), 0 12px 24px rgba(0,0,0,0.15);
       cursor: pointer; z-index: 10;
-      transition: transform 0.1s;
     }
     .balloon::before {
       content: ''; position: absolute; top: 22px; left: 26px;
@@ -84,205 +115,19 @@
       width: 3px; height: 45px; background: rgba(255,255,255,0.8);
     }
 
+    /* Pop Feedback Bursts */
     .pop-burst {
-      position: absolute; font-size: 72px; font-weight: 700;
-      pointer-events: none; z-index: 15;
-      animation: burstOut 0.6s ease-out forwards;
+      position: absolute; font-size: 86px; font-weight: 700;
+      pointer-events: none; z-index: 30;
+      animation: burstOut 0.75s ease-out forwards;
     }
     @keyframes burstOut {
-      0% { transform: scale(0.5); opacity: 1; }
-      100% { transform: scale(2.2) translateY(-30px); opacity: 0; }
-    }
-  </style>
-</head>
-<body>
-
-  <div class="cloud" style="top: 12%; animation-duration: 38s;">☁️</div>
-  <div class="cloud" style="top: 28%; animation-duration: 52s; animation-delay: -20s; font-size: 120px;">☁️</div>
-  <div class="cloud" style="top: 8%; animation-duration: 45s; animation-delay: -10s;">☁️</div>
-
-  <header>
-    <a href="index.html" class="back-btn">🏠 Home</a>
-    <div class="quest-pill" onclick="speakQuest()">
-      🔊 Pop Letter: <span class="target-letter" id="target-box">W</span>
-    </div>
-    <div class="score-pill">🎈 <span id="score">0</span></div>
-  </header>
-
-  <div class="name-bar" id="name-bar"></div>
-
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
-    const isEmma = profile === 'emma';
-
-    const kidName = isEmma ? ['E', 'M', 'M', 'A'] : ['W', 'Y', 'A', 'T', 'T'];
-    const extraLetters = ['B', 'C', 'D', 'F', 'G', 'H', 'L', 'P', 'R', 'S'];
-    const colors = ['#FF595E', '#FFCA3A', '#8AC926', '#1982C4', '#6A4C93', '#FF924C', '#F15BB5'];
-
-    const phonics = {
-      A: 'ah, like Apple', B: 'buh, like Bear', C: 'kuh, like Cat',
-      D: 'duh, like Dinosaur', E: 'eh, like Elephant', F: 'fff, like Frog',
-      G: 'guh, like Goat', H: 'huh, like Hat', L: 'lll, like Lion',
-      M: 'mmm, like Monkey', P: 'puh, like Puppy', R: 'rrr, like Rocket',
-      S: 'sss, like Sun', T: 'tuh, like Train', W: 'wuh, like Whale',
-      Y: 'yuh, like Yo-yo'
-    };
-
-    let score = 0;
-    let nameIndex = 0;
-    let targetLetter = kidName[0];
-    let balloons = [];
-    let audioCtx = null;
-
-    const nameBar = document.getElementById('name-bar');
-    function renderNameBar() {
-      nameBar.innerHTML = '';
-      kidName.forEach((letter, idx) => {
-        const slot = document.createElement('div');
-        slot.className = 'name-slot' + (idx < nameIndex ? ' filled' : '');
-        slot.textContent = letter;
-        nameBar.appendChild(slot);
-      });
-      targetLetter = kidName[nameIndex];
-      document.getElementById('target-box').textContent = targetLetter;
+      0% { transform: scale(0.4); opacity: 1; }
+      50% { transform: scale(1.6) translateY(-20px); opacity: 1; }
+      100% { transform: scale(2.1) translateY(-45px); opacity: 0; }
     }
 
-    function initAudio() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-
-    function playPopSound(isTarget) {
-      initAudio();
-      const now = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      if (isTarget) {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(523.25, now);
-        osc.frequency.setValueAtTime(659.25, now + 0.1);
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-        osc.start(now);
-        osc.stop(now + 0.35);
-      } else {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
-        gain.gain.setValueAtTime(0.5, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
-        osc.start(now);
-        osc.stop(now + 0.12);
-      }
-    }
-
-    function speak(text) {
-      if (!('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
-      const msg = new SpeechSynthesisUtterance(text);
-      msg.rate = 0.95;
-      msg.pitch = 1.15;
-      window.speechSynthesis.speak(msg);
-    }
-
-    function speakQuest() {
-      speak(`Find the letter ${targetLetter}!`);
-    }
-
-    function spawnBalloon() {
-      const el = document.createElement('div');
-      el.className = 'balloon';
-
-      const isTarget = Math.random() < 0.6;
-      const letter = isTarget
-        ? targetLetter
-        : extraLetters[Math.floor(Math.random() * extraLetters.length)];
-
-      el.textContent = letter;
-      el.style.background = colors[Math.floor(Math.random() * colors.length)];
-
-      const startX = 60 + Math.random() * (window.innerWidth - 200);
-      let y = window.innerHeight + 160;
-      const speed = isEmma ? (1.2 + Math.random() * 0.8) : (1.8 + Math.random() * 1.2);
-      const wobbleSpeed = 0.02 + Math.random() * 0.02;
-      let angle = Math.random() * Math.PI * 2;
-
-      el.style.left = `${startX}px`;
-      el.style.top = `${y}px`;
-
-      const bObj = { el, y, startX, speed, wobbleSpeed, angle, letter, popped: false };
-
-      el.onpointerdown = (e) => {
-        e.stopPropagation();
-        if (bObj.popped) return;
-        bObj.popped = true;
-
-        score++;
-        document.getElementById('score').textContent = score;
-
-        const burst = document.createElement('div');
-        burst.className = 'pop-burst';
-        burst.style.left = el.style.left;
-        burst.style.top = el.style.top;
-        burst.textContent = letter === targetLetter ? '🌟' : '💥';
-        document.body.appendChild(burst);
-        setTimeout(() => burst.remove(), 600);
-
-        el.remove();
-
-        if (letter === targetLetter) {
-          playPopSound(true);
-          nameIndex++;
-          if (nameIndex >= kidName.length) {
-            const fullWord = isEmma ? 'Emma' : 'Wyatt';
-            speak(`${letter}! You spelled ${fullWord}! Great job ${fullWord}!`);
-            setTimeout(() => {
-              nameIndex = 0;
-              renderNameBar();
-            }, 2600);
-          } else {
-            renderNameBar();
-            speak(`${letter}! ${phonics[letter] || ''}. Now find ${targetLetter}!`);
-          }
-        } else {
-          playPopSound(false);
-          speak(`${letter}! ${phonics[letter] || ''}`);
-        }
-      };
-
-      document.body.appendChild(el);
-      balloons.push(bObj);
-    }
-
-    function animate() {
-      for (let i = balloons.length - 1; i >= 0; i--) {
-        const b = balloons[i];
-        if (b.popped) {
-          balloons.splice(i, 1);
-          continue;
-        }
-        b.y -= b.speed;
-        b.angle += b.wobbleSpeed;
-        const xOffset = Math.sin(b.angle) * 25;
-        b.el.style.top = `${b.y}px`;
-        b.el.style.left = `${b.startX + xOffset}px`;
-
-        if (b.y < -200) {
-          b.el.remove();
-          balloons.splice(i, 1);
-        }
-      }
-      requestAnimationFrame(animate);
-    }
-
-    renderNameBar();
-    animate();
-    setInterval(spawnBalloon, isEmma ? 1800 : 1400);
-    spawnBalloon();
-    setTimeout(spawnBalloon, 600);
-  </script>
-</body>
-</html>
+    /* Level Complete Overlay */
+    #win-overlay {
+      display: none; position: fixed; inset: 0; z-index: 60;
+      background: rgba(29, 53, 8
