@@ -56,6 +56,12 @@ header {
 
 .backpack-bar { background: #FFD166; color: #1A103C; }
 
+#adventure-gear,
+.adventure-gear,
+.backpack-bar {
+  display: none !important;
+}
+
 .pack-slot {
   width: 44px;
   height: 44px;
