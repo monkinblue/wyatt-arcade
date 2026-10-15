@@ -6,6 +6,7 @@ window.STORY_DATA = {
       title: "Page 1 of 5 • Morning at the Cozy Cottage",
       audio: "audio/beanstalk-p1.mp3",
       theme: "morning_cottage",
+      worldImage: "images/beanstalk/p1-world.png",
       text: "One sunny morning, Wyatt and Emma were playing in the garden with Emma's favorite white stuffed animal, Doggie. Suddenly, Doggie wiggled his soft floppy ears and sniffed out a pouch of glowing rainbow beans by the mossy stone wall! Wyatt dug a cozy little hole in the dirt, and together they planted the magic beans.",
       hotspots: [
         {
@@ -66,6 +67,7 @@ window.STORY_DATA = {
       title: "Page 2 of 5 • The Moonlit Beanstalk & Adventure Bag",
       audio: "audio/beanstalk-p2.mp3",
       theme: "moonlit_vine",
+      worldImage: "images/beanstalk/p2-world.png",
       requiresPacking: true,
       text: "That night, purple and gold starlight floated through the window—and the magic dust made Emma's stuffed Doggie wag his tail! Outside, a colossal emerald beanstalk was twisting all the way up toward the stars, where a friendly cloud dragon lived. 'Quick, Emma and Doggie!' whispered Wyatt. 'Let's pack two special items in our backpack before we climb!'",
       gearChoices: [
@@ -113,6 +115,7 @@ window.STORY_DATA = {
       title: "Page 3 of 5 • Climbing Into the Dragon Clouds",
       audio: "audio/beanstalk-p3.mp3",
       theme: "sky_climb",
+      worldImage: "images/beanstalk/p3-world.png",
       text: "Up, up, up they climbed through the warm sunrise clouds, hopping from giant dewdrop leaves to billowy pink cloud islands. Doggie hopped right behind Emma, barking happily at a glowing sapphire dragon egg tucked inside a golden nest! High above them, a friendly baby dragon fluttered toward a shimmering sky castle.",
       hotspots: [
         {
@@ -153,6 +156,7 @@ window.STORY_DATA = {
       title: "Page 4 of 5 • The Cloud Dragon's Waterfall Gate",
       audio: "audio/beanstalk-p4.mp3",
       theme: "castle_gate",
+      worldImage: "images/beanstalk/p4-world.png",
       text: "At the very top of the beanstalk stood a magnificent golden sky castle surrounded by cascading starlight waterfalls. A sleepy baby green dragon was curled up right in front of the towering carved doors! Wyatt reached into their adventure backpack, while Doggie gave a gentle little squeak to say hello.",
       hotspots: [
         {
@@ -193,6 +197,7 @@ window.STORY_DATA = {
       title: "Page 5 of 5 • Sparky the Friendly Cloud Dragon",
       audio: "audio/beanstalk-p5.mp3",
       theme: "dragon_hall",
+      worldImage: "images/beanstalk/p5-world.png",
       text: "The golden doors opened into a breathtaking crystal hall where Sparky, a magnificent emerald Cloud Dragon, was listening to a magical self-playing harp! Sparky puffed a warm cloud of golden starlight that made Wyatt, Emma, and Doggie giggle and float. Then the friendly dragon scooped all three onto his cozy back and flew them safely home for bedtime.",
       hotspots: [
         {
