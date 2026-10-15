@@ -15,11 +15,34 @@
   <link rel="stylesheet" href="engine/diorama-engine.css">
 </head>
 <body>
-  <div id="diorama-app"></div>
+  <div id="stage-wrap">
+    <header>
+      <a class="hud-btn" href="index.html">Library</a>
+      <div class="backpack-bar">Adventure Gear</div>
+    </header>
+
+    <div class="story-card">
+      <button type="button" class="nav-arrow" id="prev-btn" aria-label="Previous page">◀</button>
+      <div class="story-content">
+        <div class="story-toolbar">
+          <button type="button" class="read-btn" id="read-btn">Read to Me</button>
+          <span class="page-indicator" id="page-title">Page 1 of 5</span>
+        </div>
+        <div id="story-text" class="story-text sentence-box"></div>
+      </div>
+      <button type="button" class="nav-arrow" id="next-btn" aria-label="Next page">▶</button>
+    </div>
+
+    <div class="pixel-frame">
+      <div class="diorama-stage stage-frame">
+        <canvas id="diorama-canvas" width="640" height="340"></canvas>
+      </div>
+    </div>
+  </div>
+
   <script src="books/beanstalk/story-data.js"></script>
   <script src="engine/diorama-engine.js"></script>
   <script>
-    DioramaEngine.mount(document.getElementById('diorama-app'), window.BEANSTALK_BOOK);
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});

@@ -1,91 +1,232 @@
-/* Beanstalk story configuration for the living pixel diorama.
-   Narration text matches the ElevenLabs recordings. Pages 3-5 keep their
-   audio paths ready; set hasAudio to true after those MP3s are added. */
-(function () {
-  'use strict';
-
-  window.BEANSTALK_BOOK = {
-    id: 'beanstalk',
-    title: 'Wyatt, Emma & the Magic Beanstalk',
-    imageDir: 'images/beanstalk/',
-    paintingCatalog: 'images/beanstalk/paintings.json',
-    defaultPack: ['flashlight', 'wand'],
-    gear: [
-      { id: 'flashlight', name: 'Flashlight', sprite: 'flashlight', msg: 'FLASH! Super bright beam!', sfx: 'flash' },
-      { id: 'dino', name: 'Toy Dino', sprite: 'dino', msg: 'ROOOAR! Dino power!', sfx: 'roar' },
-      { id: 'wand', name: 'Sunflower Wand', sprite: 'wand', msg: 'Sparkle magic!', sfx: 'magic' },
-      { id: 'cookie', name: 'Giant Cookie', sprite: 'cookie', msg: 'CRUNCH! Yum yum!', sfx: 'crunch' }
-    ],
-    pages: [
-      {
-        id: 1,
-        scene: 'garden',
-        audio: 'audio/beanstalk-p1.mp3',
-        hasAudio: true,
-        text: 'One sunny morning, Wyatt and Emma traded their silly spotted cow for five magic glowing beans! They planted them right beside the garden fence.',
-        hotspots: [
-          { id: 'cottage', sprite: 'cottage', label: 'Family Cottage', x: 0.22, y: 0.90, anchor: 'feet', scenery: true, anim: 'shake', sfx: 'knock', msg: 'Knock knock! Time for an adventure!' },
-          { id: 'cow', sprite: 'cow', label: 'Daisy the Cow', x: 0.48, y: 0.90, anchor: 'feet', anim: 'bounce', sfx: 'moo', msg: 'MOOOOO! Good luck with those beans!' },
-          { id: 'beans', sprite: 'beans', label: 'Magic Beans', x: 0.64, y: 0.78, anchor: 'center', magic: true, anim: 'spin', sfx: 'magic', msg: 'ZZZAP! Magic bean power!' },
-          { id: 'wyatt', sprite: 'wyatt', label: 'Wyatt', x: 0.74, y: 0.90, anchor: 'feet', anim: 'bounce', sfx: 'jump', msg: 'Whoa! Look how shiny they are!' },
-          { id: 'emma', sprite: 'emma', label: 'Emma', x: 0.88, y: 0.90, anchor: 'feet', anim: 'bounce', sfx: 'chime', msg: "Let's plant them right here!" }
-        ]
-      },
-      {
-        id: 2,
-        scene: 'night',
-        audio: 'audio/beanstalk-p2.mp3',
-        hasAudio: true,
-        gearSelect: true,
-        text: 'That night while the moon shone bright, a giant green beanstalk sprouted all the way into the clouds! Pick two items to pack in your backpack before you climb!',
-        hotspots: [
-          { id: 'moon', sprite: 'moon', label: 'Sleepy Moon', x: 0.16, y: 0.22, anchor: 'center', anim: 'spin', sfx: 'chime', msg: 'Yaaaawn! Have a safe climb!' },
-          { id: 'stalk', sprite: 'leaf', label: 'Giant Stalk', x: 0.70, y: 0.42, anchor: 'center', anim: 'bounce', sfx: 'jump', msg: 'SPROING! Growing higher and higher!' },
-          { id: 'owl', sprite: 'owl', label: 'Night Owl', x: 0.16, y: 0.62, anchor: 'feet', anim: 'bounce', sfx: 'hoot', msg: 'HOO-HOO! Pack your best gear!' }
-        ]
-      },
-      {
-        id: 3,
-        scene: 'climb',
-        audio: 'audio/beanstalk-p3.mp3',
-        hasAudio: false,
-        text: 'Up, up, up they climbed! Higher than the tallest trees and right through the fluffy white clouds until they saw a glittering road in the sky.',
-        hotspots: [
-          { id: 'vine-high', sprite: 'leaf', label: 'Giant Vine', x: 0.50, y: 0.28, anchor: 'center', anim: 'shake', sfx: 'jump', msg: 'Rustle rustle! Big leafy steps!' },
-          { id: 'vine-low', sprite: 'leaf', label: 'Leafy Step', x: 0.56, y: 0.70, anchor: 'center', anim: 'shake', sfx: 'jump', msg: 'Hold on tight!' },
-          { id: 'wyatt-climb', sprite: 'wyatt', label: 'Wyatt Climbing', x: 0.34, y: 0.48, anchor: 'feet', anim: 'bounce', sfx: 'chime', msg: 'I can see our backyard from way up here!' },
-          { id: 'emma-climb', sprite: 'emma', label: 'Emma Climbing', x: 0.68, y: 0.58, anchor: 'feet', anim: 'bounce', sfx: 'chime', msg: 'The clouds feel like cotton candy!' },
-          { id: 'cloud', sprite: 'cloud', label: 'Tickle Cloud', x: 0.16, y: 0.34, anchor: 'center', anim: 'bounce', sfx: 'magic', msg: 'PFFFT! Fluffy cloud puff!' },
-          { id: 'rainbow', sprite: 'rainbow', label: 'Sky Rainbow', x: 0.84, y: 0.30, anchor: 'center', magic: true, anim: 'spin', sfx: 'harp', msg: 'Sliding across the sky!' }
-        ]
-      },
-      {
-        id: 4,
-        scene: 'hall',
-        audio: 'audio/beanstalk-p4.mp3',
-        hasAudio: false,
-        castle: true,
-        text: 'At the top stood a tremendous Cloud Castle! Inside, a sleepy Giant snored loudly at his table beside a singing Golden Harp and a friendly Golden Goose. Tap your packed gear to use it!',
-        hotspots: [
-          { id: 'crest', sprite: 'crest', label: 'Cloud Castle', x: 0.16, y: 0.42, anchor: 'center', anim: 'shake', sfx: 'knock', msg: 'BOOM! Everything inside is huge!' },
-          { id: 'giant', sprite: 'giant', label: 'Sleepy Giant', x: 0.40, y: 0.84, anchor: 'feet', anim: 'bounce', sfx: 'moo', msg: 'FEE-FI-FO-FUM... Zzzzzzz!' },
-          { id: 'goose', sprite: 'goose', label: 'Golden Goose', x: 0.62, y: 0.84, anchor: 'feet', magic: true, anim: 'bounce', sfx: 'magic', msg: 'HONK! Take me home with you!' },
-          { id: 'harp', sprite: 'harp', label: 'Magic Harp', x: 0.84, y: 0.78, anchor: 'feet', magic: true, anim: 'spin', sfx: 'harp', msg: 'Pluck! Pluck! A lullaby for the Giant!' }
-        ]
-      },
-      {
-        id: 5,
-        scene: 'home',
-        audio: 'audio/beanstalk-p5.mp3',
-        hasAudio: false,
-        text: "With a wiggle and a giggle, Wyatt and Emma zoomed all the way down the beanstalk right into Dad's arms! The Golden Goose honked happily, and they all had golden pancakes for dinner!",
-        hotspots: [
-          { id: 'dad', sprite: 'dad', label: 'Dad', x: 0.24, y: 0.90, anchor: 'feet', anim: 'bounce', sfx: 'harp', msg: 'Welcome back, my brave explorers!' },
-          { id: 'wyatt-home', sprite: 'wyatt', label: 'Wyatt', x: 0.44, y: 0.90, anchor: 'feet', anim: 'bounce', sfx: 'jump', msg: "Dad! You won't believe what was in the clouds!" },
-          { id: 'emma-home', sprite: 'emma', label: 'Emma', x: 0.62, y: 0.90, anchor: 'feet', anim: 'bounce', sfx: 'chime', msg: 'We brought home a new friend!' },
-          { id: 'goose-home', sprite: 'goose', label: 'Golden Goose', x: 0.82, y: 0.90, anchor: 'feet', magic: true, anim: 'spin', sfx: 'magic', msg: 'Golden pancakes for everyone!' }
-        ]
-      }
-    ]
-  };
-})();
+window.STORY_DATA = {
+  title: "Wyatt, Emma & the Magic Beanstalk",
+  pages: [
+    {
+      id: 1,
+      title: "Page 1 of 5 • Morning at the Cozy Cottage",
+      audio: "audio/beanstalk-p1.mp3",
+      theme: "morning_cottage",
+      text: "One sunny morning, Wyatt and Emma were playing in the garden with Emma's favorite white stuffed animal, Doggie. Suddenly, Doggie wiggled his soft floppy ears and sniffed out a pouch of glowing rainbow beans by the mossy stone wall! Wyatt dug a cozy little hole in the dirt, and together they planted the magic beans.",
+      hotspots: [
+        {
+          id: "doggie",
+          name: "Emma's Stuffed Doggie",
+          type: "doggie",
+          x: 290,
+          y: 268,
+          r: 44,
+          isHelper: true,
+          sound: "squeak",
+          toast: "Squeak-woof! Doggie wagged his floppy white ears and sniffed toward the glowing magic beans!"
+        },
+        {
+          id: "wyatt_emma",
+          name: "Wyatt & Emma",
+          type: "kids",
+          x: 210,
+          y: 252,
+          r: 48,
+          sound: "giggle",
+          toast: "Wyatt and Emma high-five! 'Let's plant these glowing beans right here!'"
+        },
+        {
+          id: "beans",
+          name: "Glowing Rainbow Beans",
+          type: "beans",
+          x: 425,
+          y: 278,
+          r: 42,
+          sound: "magic",
+          toast: "Shhh-plink! The rainbow beans swirl with golden stardust in the garden soil!"
+        },
+        {
+          id: "chimney",
+          name: "Cottage Hearth Chimney",
+          type: "chimney",
+          x: 138,
+          y: 88,
+          r: 42,
+          sound: "puff",
+          toast: "Puff, puff! Sweet cinnamon pancake smoke curls up into the golden morning sky!"
+        },
+        {
+          id: "cow",
+          name: "Daisy the Meadow Cow",
+          type: "cow",
+          x: 545,
+          y: 242,
+          r: 48,
+          sound: "moo",
+          toast: "Moooo! Daisy rings her golden bell and munches on sweet pink clover!"
+        }
+      ]
+    },
+    {
+      id: 2,
+      title: "Page 2 of 5 • The Moonlit Beanstalk & Adventure Bag",
+      audio: "audio/beanstalk-p2.mp3",
+      theme: "moonlit_vine",
+      requiresPacking: true,
+      text: "That night, purple and gold starlight floated through the window—and the magic dust made Emma's stuffed Doggie wag his tail! Outside, a colossal emerald beanstalk was twisting all the way up toward the stars, where a friendly cloud dragon lived. 'Quick, Emma and Doggie!' whispered Wyatt. 'Let's pack two special items in our backpack before we climb!'",
+      gearChoices: [
+        { id: "treat", name: "Golden Dragon Treat", icon: "🍥" },
+        { id: "whistle", name: "Starlight Dragon Flute", icon: "🪈" },
+        { id: "lantern", name: "Firefly Lantern", icon: "🏮" },
+        { id: "compass", name: "Cloud Compass", icon: "🧭" }
+      ],
+      hotspots: [
+        {
+          id: "doggie",
+          name: "Emma's Stuffed Doggie",
+          type: "doggie",
+          x: 185,
+          y: 272,
+          r: 44,
+          isHelper: true,
+          sound: "squeak",
+          toast: "Arf-squeak! Doggie does a magical moonlit backflip!"
+        },
+        {
+          id: "vine",
+          name: "Colossal Emerald Beanstalk",
+          type: "vine_heart",
+          x: 325,
+          y: 180,
+          r: 60,
+          sound: "magic",
+          toast: "Vwoooosh! Golden sap pulses up the giant spiraling vine toward the stars!"
+        },
+        {
+          id: "moon",
+          name: "Crescent Harvest Moon",
+          type: "moon",
+          x: 520,
+          y: 78,
+          r: 48,
+          sound: "harp",
+          toast: "Twinkle-chime! Look closely—a friendly dragon silhouette glides across the moon!"
+        }
+      ]
+    },
+    {
+      id: 3,
+      title: "Page 3 of 5 • Climbing Into the Dragon Clouds",
+      audio: "audio/beanstalk-p3.mp3",
+      theme: "sky_climb",
+      text: "Up, up, up they climbed through the warm sunrise clouds, hopping from giant dewdrop leaves to billowy pink cloud islands. Doggie hopped right behind Emma, barking happily at a glowing sapphire dragon egg tucked inside a golden nest! High above them, a friendly baby dragon fluttered toward a shimmering sky castle.",
+      hotspots: [
+        {
+          id: "doggie",
+          name: "Emma's Stuffed Doggie",
+          type: "doggie",
+          x: 215,
+          y: 262,
+          r: 44,
+          isHelper: true,
+          sound: "squeak",
+          toast: "Sniff, sniff! Doggie bounces over to the glowing sapphire dragon egg!"
+        },
+        {
+          id: "egg",
+          name: "Glowing Sapphire Dragon Egg",
+          type: "dragon_egg",
+          x: 430,
+          y: 245,
+          r: 46,
+          sound: "hatch",
+          toast: "CRACK-POP! A tiny emerald baby dragon pokes its nose out and puffs rainbow sparkles!"
+        },
+        {
+          id: "baby_dragon",
+          name: "Baby Cloud Dragon",
+          type: "baby_dragon",
+          x: 495,
+          y: 108,
+          r: 48,
+          sound: "dragon_purr",
+          toast: "Chirp-purrrr! The baby dragon does a joyful loop-de-loop for Wyatt!"
+        }
+      ]
+    },
+    {
+      id: 4,
+      title: "Page 4 of 5 • The Cloud Dragon's Waterfall Gate",
+      audio: "audio/beanstalk-p4.mp3",
+      theme: "castle_gate",
+      text: "At the very top of the beanstalk stood a magnificent golden sky castle surrounded by cascading starlight waterfalls. A sleepy baby green dragon was curled up right in front of the towering carved doors! Wyatt reached into their adventure backpack, while Doggie gave a gentle little squeak to say hello.",
+      hotspots: [
+        {
+          id: "doggie",
+          name: "Emma's Stuffed Doggie",
+          type: "doggie",
+          x: 165,
+          y: 274,
+          r: 44,
+          isHelper: true,
+          sound: "squeak",
+          toast: "Squeak-woof! Doggie boops noses with the sleepy baby dragon!"
+        },
+        {
+          id: "gate_dragon",
+          name: "Sleepy Guardian Dragon",
+          type: "baby_dragon",
+          x: 330,
+          y: 256,
+          r: 52,
+          sound: "dragon_purr",
+          toast: "Yaaaawn-purrrr! The little dragon wakes up, munches Wyatt's Golden Dragon Treat, and wags its tail!"
+        },
+        {
+          id: "castle_door",
+          name: "Sunburst Castle Gates",
+          type: "castle_door",
+          x: 475,
+          y: 185,
+          r: 58,
+          sound: "harp",
+          toast: "SHIMMER-CHIME! The grand golden gates swing open into the dragon's sanctuary!"
+        }
+      ]
+    },
+    {
+      id: 5,
+      title: "Page 5 of 5 • Sparky the Friendly Cloud Dragon",
+      audio: "audio/beanstalk-p5.mp3",
+      theme: "dragon_hall",
+      text: "The golden doors opened into a breathtaking crystal hall where Sparky, a magnificent emerald Cloud Dragon, was listening to a magical self-playing harp! Sparky puffed a warm cloud of golden starlight that made Wyatt, Emma, and Doggie giggle and float. Then the friendly dragon scooped all three onto his cozy back and flew them safely home for bedtime.",
+      hotspots: [
+        {
+          id: "doggie",
+          name: "Emma's Stuffed Doggie",
+          type: "doggie",
+          x: 175,
+          y: 275,
+          r: 44,
+          isHelper: true,
+          sound: "squeak",
+          toast: "Woof-woof! Doggie dances in the floating golden starlight!"
+        },
+        {
+          id: "cloud_dragon",
+          name: "Sparky the Emerald Cloud Dragon",
+          type: "big_dragon",
+          x: 365,
+          y: 215,
+          r: 72,
+          sound: "dragon_purr",
+          toast: "PURRRR-WHOOSH! Sparky breathes a dazzling aurora of warm golden sparkles across the hall!"
+        },
+        {
+          id: "harp",
+          name: "Celestial Singing Harp",
+          type: "harp",
+          x: 535,
+          y: 238,
+          r: 48,
+          sound: "harp",
+          toast: "Plink-plonk-shimmer! The celestial harp plays a sweet bedtime lullaby for Wyatt and Emma!"
+        }
+      ]
+    }
+  ]
+};
