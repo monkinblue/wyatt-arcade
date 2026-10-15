@@ -1,0 +1,13 @@
+{
+  "note": "Drop p1-sky.png and p1-world.png (through p5) in this folder, then set the matching key to true. The diorama paints a 16-bit scene until that painting is ready. Sprite sheets can live in images/beanstalk/sprites/.",
+  "p1-sky": false,
+  "p1-world": false,
+  "p2-sky": false,
+  "p2-world": false,
+  "p3-sky": false,
+  "p3-world": false,
+  "p4-sky": false,
+  "p4-world": false,
+  "p5-sky": false,
+  "p5-world": false
+}

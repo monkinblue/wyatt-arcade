@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1A103C">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Wyatt Arcade">
   <title>Wyatt & Emma's Learning Space</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
@@ -101,6 +108,16 @@
       padding: 8px 16px; border-radius: 20px; font-size: 14px; color: #1D3557;
       font-weight: 700; box-shadow: 0 4px 10px rgba(0,0,0,0.08);
     }
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+    .install-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 3px solid #1A103C; background: #FFD166; color: #1A103C;
+      font-family: inherit; font-size: 18px; font-weight: 700;
+      border-radius: 999px; padding: 10px 16px; min-height: 48px;
+      cursor: pointer; box-shadow: 0 4px 0 #C4882E;
+    }
+    .install-badge[hidden] { display: none !important; }
+    .install-badge:active { transform: translateY(2px); box-shadow: 0 2px 0 #C4882E; }
   </style>
 </head>
 <body>
@@ -113,9 +130,12 @@
         <p id="subgreeting">Dad's Custom Learning Space • Age 4 Mode</p>
       </div>
     </div>
-    <div class="profile-toggle">
+    <div class="header-actions">
+      <button type="button" id="install-app" class="install-badge" hidden>📲 Install App</button>
+      <div class="profile-toggle">
       <button class="prof-btn active" id="btn-wyatt" onclick="setProfile('wyatt')">🦖 Wyatt (4)</button>
       <button class="prof-btn" id="btn-emma" onclick="setProfile('emma')">🦄 Emma (3)</button>
+      </div>
     </div>
   </header>
 
@@ -193,6 +213,37 @@
 
     setProfile(activeKid);
     render();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
+    (function () {
+      var badge = document.getElementById('install-app');
+      var promptEvent = null;
+      var standalone = window.matchMedia('(display-mode: fullscreen)').matches
+        || window.matchMedia('(display-mode: standalone)').matches;
+      if (!badge || standalone) return;
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        promptEvent = event;
+        badge.hidden = false;
+      });
+      badge.addEventListener('click', function () {
+        if (!promptEvent) return;
+        promptEvent.prompt();
+        promptEvent.userChoice.then(function () {
+          promptEvent = null;
+          badge.hidden = true;
+        });
+      });
+      window.addEventListener('appinstalled', function () {
+        promptEvent = null;
+        badge.hidden = true;
+      });
+    })();
   </script>
 </body>
 </html>
