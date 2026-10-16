@@ -172,8 +172,6 @@
     document.getElementById('sib-btn').textContent = (isEmma ? '🦖 ' : '🦄 ') + siblingName;
 
     // Fluid Kindergarten Manuscript Stroke Definitions (0..100 Normalized Space)
-    // - Connected-corner letters (W, V, Z, L, M, N, U) are continuous single-motion paths!
-    // - T starts with the horizontal top bar (Left->Right), then vertical center stem (Top->Down)!
     const STROKES = {
       A: [ [[50,12],[20,88]], [[50,12],[80,88]], [[31,58],[69,58]] ],
       B: [ [[26,12],[26,88]], [[26,12],[64,16],[74,31],[64,47],[26,49],[68,52],[76,69],[66,85],[26,88]] ],
@@ -222,7 +220,9 @@
     let progressIdx = 0;
     let isTracing = false;
     let pointerDown = false;
-    let noLiftMode = true; // Lets kid keep finger down across strokes or corners!
+    let strokeCompleted = false; // Guard lock so resting on Finish Flag can never multi-fire!
+    let advanceTimer = null;
+    let noLiftMode = true;
     let heat = 0;
     let isOffTrack = false;
     let pointerPos = { x: 0, y: 0 };
@@ -246,7 +246,7 @@
     if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
     [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
 
-    // 2. Minimal, Clean Voice & Synth Audio (Only Speaks Letter Name & Final Word!)
+    // 2. Minimal, Clean Voice & Synth Audio
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -276,7 +276,6 @@
       osc.start(now); osc.stop(now + dur);
     }
 
-    // Toggle No-Lift Continuous Mode
     const flowBtn = document.getElementById('flow-btn');
     flowBtn.onpointerdown = () => {
       noLiftMode = !noLiftMode;
@@ -341,9 +340,15 @@
     }
 
     function loadLetter(announce = true) {
+      if (advanceTimer) {
+        clearTimeout(advanceTimer);
+        advanceTimer = null;
+      }
       strokeIdx = 0;
       progressIdx = 0;
       isTracing = false;
+      pointerDown = false; // Require fresh touch when a brand-new letter appears
+      strokeCompleted = false;
       setHeat(0);
       const ch = currentWord[letterIdx];
       const strokes = STROKES[ch] || STROKES.A;
@@ -358,17 +363,19 @@
       const strokes = STROKES[ch] || STROKES.A;
       strokeIdx = sIdx;
       progressIdx = 0;
+      strokeCompleted = false;
       setHeat(0);
       densePath = buildDenseStroke(strokes[strokeIdx]);
       updateBanner();
 
-      // If No-Lift Mode is OFF, require lifting and tapping the next green star
       if (!noLiftMode) {
         isTracing = false;
+        pointerDown = false;
       } else if (pointerDown) {
-        // Keep tracing seamlessly as soon as finger nears the new start star!
+        // Only engage immediately if the new stroke starts right where the last one ended;
+        // otherwise wait until the child slides over to the new green start star!
         const d = Math.hypot(pointerPos.x - densePath[0].x, pointerPos.y - densePath[0].y);
-        isTracing = d <= 68;
+        isTracing = d <= 58;
       }
     }
 
@@ -402,6 +409,7 @@
 
     canvas.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      if (strokeCompleted) return;
       canvas.setPointerCapture(e.pointerId);
       pointerDown = true;
       const pt = getCanvasPt(e);
@@ -415,7 +423,6 @@
         isOffTrack = false;
         playTone(440, 580, 0.1, 'sine', 0.18);
       } else {
-        // Gentle visual + soft boop if tapping far from the green star (No annoying voice!)
         playTone(220, 170, 0.14, 'triangle', 0.15);
         for (let i = 0; i < 10; i++) {
           sparks.push({ x: targetPt.x, y: targetPt.y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, color: '#06D6A0', life: 22 });
@@ -424,14 +431,14 @@
     });
 
     canvas.addEventListener('pointermove', (e) => {
-      if (!pointerDown) return;
+      if (!pointerDown || strokeCompleted) return;
       const pt = getCanvasPt(e);
       pointerPos = pt;
 
-      // In No-Lift mode, if finger glides onto the green start orb, engage automatically!
-      if (!isTracing && noLiftMode) {
-        const targetPt = densePath[progressIdx];
-        if (Math.hypot(pt.x - targetPt.x, pt.y - targetPt.y) <= 62) {
+      // In No-Lift mode between strokes of the SAME letter, only lock on when near the start star (progressIdx === 0)
+      if (!isTracing && noLiftMode && progressIdx === 0) {
+        const startPt = densePath[0];
+        if (Math.hypot(pt.x - startPt.x, pt.y - startPt.y) <= 58) {
           isTracing = true;
           isOffTrack = false;
           playTone(440, 580, 0.09, 'sine', 0.16);
@@ -441,7 +448,6 @@
 
       if (!isTracing) return;
 
-      // Allow smooth look-ahead around corners (like W, M, Z, B) without getting stuck
       let bestIdx = progressIdx;
       let minDist = Infinity;
       const maxLookAhead = Math.min(densePath.length - 1, progressIdx + 16);
@@ -510,6 +516,10 @@
     }
 
     function completeCurrentStroke() {
+      if (strokeCompleted) return; // Prevents multi-triggering while finger rests on flag!
+      strokeCompleted = true;
+      isTracing = false;
+      isOffTrack = false;
       setHeat(0);
       playTone(523.25, 1046.5, 0.22, 'triangle', 0.28);
 
@@ -518,14 +528,15 @@
       if (strokeIdx + 1 < strokes.length) {
         loadStroke(strokeIdx + 1);
       } else {
-        isTracing = false;
+        // Whole letter finished! Release pointerDown so resting on the flag never triggers the next letter
+        pointerDown = false;
         if (letterIdx + 1 < currentWord.length) {
-          setTimeout(() => {
+          advanceTimer = setTimeout(() => {
             letterIdx++;
             loadLetter(true);
           }, 480);
         } else {
-          setTimeout(handleWordWin, 520);
+          advanceTimer = setTimeout(handleWordWin, 520);
         }
       }
     }
@@ -570,7 +581,7 @@
 
       ctx.clearRect(0, 0, CW, CH);
 
-      // Handwriting guidelines (Top line, Dotted midline, Baseline)
+      // Handwriting guidelines
       ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
       ctx.lineWidth = 3;
       ctx.setLineDash([]);
