@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Animal Piano Concert Hall!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --app-w: 100vw; --app-h: 100dvh; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
+      font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+      background: radial-gradient(circle at 50% 25%, #3B0764 0%, #1E1B4B 55%, #090D16 100%);
+      color: #FFF; touch-action: none;
+    }
+    #piano-app {
+      position: fixed; inset: 0; width: var(--app-w); height: var(--app-h);
+      display: grid; grid-template-rows: 68px 58px 1fr 220px;
+      padding: 10px 16px 14px; gap: 8px;
+    }
+
+    /* Top Header: Back & Instrument Voice Picker */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(15, 23, 42, 0.92); border: 3px solid #00F5D4;
+      border-radius: 24px; padding: 6px 14px; gap: 10px; z-index: 20;
+      box-shadow: 0 8px 24px rgba(0, 245, 212, 0.2);
+    }
+    .nav-btn, .voice-btn, .song-btn, .demo-btn {
+      font-family: inherit; font-weight: 700; font-size: 16px;
+      background: #1E293B; color: #F8FAFC; border: 3px solid #475569;
+      padding: 7px 14px; border-radius: 18px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap;
+      transition: transform 0.12s, background 0.15s;
+    }
+    .nav-btn:active, .voice-btn:active, .song-btn:active, .demo-btn:active { transform: scale(0.94); }
+    .voice-bar, .song-bar { display: flex; gap: 8px; overflow-x: auto; align-items: center; }
+    .voice-btn.active {
+      background: #00F5D4; color: #0F172A; border-color: #FFF;
+      transform: scale(1.05); box-shadow: 0 0 16px rgba(0, 245, 212, 0.6);
+    }
+
+    /* Second Row: Follow-the-Lights Song Picker */
+    .song-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(30, 27, 75, 0.88); border: 3px solid #A855F7;
+      border-radius: 22px; padding: 6px 14px; gap: 10px; z-index: 20;
+    }
+    .song-btn.active {
+      background: #FDE047; color: #0F172A; border-color: #FFF;
+      box-shadow: 0 0 16px rgba(253, 224, 71, 0.7);
+    }
+    .demo-btn {
+      background: #EC4899; color: #FFF; border-color: #F472B6;
+    }
+    .demo-btn.playing {
+      background: #EF4444; border-color: #FCA5A5;
+      animation: pulseBtn 0.6s infinite alternate;
+    }
+    @keyframes pulseBtn { from { transform: scale(1); } to { transform: scale(1.07); } }
+
+    /* Center Stage: Animal Choir & Floating Notes Canvas */
+    .concert-stage {
+      position: relative; width: 100%; height: 100%;
+      background: radial-gradient(circle at 50% 80%, rgba(168, 85, 247, 0.28) 0%, rgba(15, 23, 42, 0.85) 80%);
+      border-radius: 28px; border: 4px solid #F472B6; overflow: hidden;
+      display: flex; flex-direction: column; justify-content: flex-end;
+      box-shadow: inset 0 0 40px rgba(244, 114, 182, 0.22);
+    }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+    .stage-banner {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9); border: 3px solid #FDE047;
+      color: #FEF08A; padding: 6px 22px; border-radius: 99px;
+      font-size: 20px; font-weight: 700; z-index: 10; white-space: nowrap;
+    }
+
+    /* Animal Choir Row */
+    .choir-row {
+      position: relative; z-index: 5;
+      display: grid; grid-template-columns: repeat(8, 1fr);
+      gap: 10px; padding: 0 14px 10px; align-items: end;
+    }
+    .choir-pet {
+      display: flex; flex-direction: column; align-items: center;
+      transition: transform 0.14s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      cursor: pointer;
+    }
+    .choir-pet .pet-avatar {
+      width: 68px; height: 68px; border-radius: 50%;
+      background: rgba(255,255,255,0.14); border: 4px solid rgba(255,255,255,0.5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 42px; box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+      transition: all 0.14s;
+    }
+    .choir-pet.singing {
+      transform: translateY(-24px) scale(1.22);
+    }
+    .choir-pet.singing .pet-avatar {
+      background: #FFF; border-color: #FDE047;
+      box-shadow: 0 0 28px rgba(253, 224, 71, 0.95);
+    }
+
+    /* Bottom Rainbow Piano Keyboard */
+    .keyboard-bed {
+      display: grid; grid-template-columns: repeat(8, 1fr);
+      gap: 10px; padding: 6px 8px;
+      background: rgba(15, 23, 42, 0.95); border: 4px solid #38BDF8;
+      border-radius: 28px; box-shadow: 0 12px 30px rgba(0,0,0,0.55);
+      z-index: 20;
+    }
+    .piano-key {
+      position: relative; border-radius: 20px; border: 5px solid #FFF;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: space-between; padding: 14px 6px 16px;
+      cursor: pointer; box-shadow: 0 10px 0 rgba(0,0,0,0.35), inset 0 6px 12px rgba(255,255,255,0.45);
+      transition: transform 0.08s, box-shadow 0.08s, filter 0.08s;
+    }
+    .piano-key.pressed {
+      transform: translateY(8px) scale(0.97);
+      box-shadow: 0 2px 0 rgba(0,0,0,0.35), 0 0 32px #FFF;
+      filter: brightness(1.22);
+    }
+    .piano-key.target-guide::before {
+      content: '⭐'; position: absolute; top: -22px; left: 50%;
+      transform: translateX(-50%); font-size: 42px;
+      filter: drop-shadow(0 0 12px #FDE047);
+      animation: starBounce 0.45s infinite alternate ease-in-out;
+      z-index: 30; pointer-events: none;
+    }
+    .piano-key.target-guide {
+      border-color: #FDE047;
+      box-shadow: 0 10px 0 rgba(0,0,0,0.35), 0 0 28px rgba(253, 224, 71, 0.95);
+    }
+    @keyframes starBounce {
+      from { transform: translate(-50%, 0) scale(1); }
+      to { transform: translate(-50%, -14px) scale(1.22); }
+    }
+    .key-solfege {
+      font-size: 20px; font-weight: 700; color: rgba(255,255,255,0.92);
+      text-shadow: 0 2px 4px rgba(0,0,0,0.35); pointer-events: none;
+    }
+    .key-letter {
+      font-size: 38px; font-weight: 700; color: #FFF;
+      text-shadow: 0 3px 6px rgba(0,0,0,0.4); pointer-events: none;
+    }
+    .key-dot {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: rgba(255,255,255,0.75); pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="piano-app">
+    <header>
+      <a href="index.html" class="nav-btn">🏠 Back</a>
+
+      <div class="voice-bar" id="voice-bar">
+        <button class="voice-btn active" data-voice="piano">🎹 Piano</button>
+        <button class="voice-btn" data-voice="dog">🐶 Doggie Woof</button>
+        <button class="voice-btn" data-voice="cat">🐱 Kitty Meow</button>
+        <button class="voice-btn" data-voice="frog">🐸 Frog Ribbit</button>
+        <button class="voice-btn" data-voice="synth">🚀 Space Synth</button>
+      </div>
+    </header>
+
+    <div class="song-row">
+      <div class="song-bar" id="song-bar">
+        <button class="song-btn active" data-song="free">🌈 Free Play</button>
+        <button class="song-btn" data-song="twinkle">⭐ Twinkle Star</button>
+        <button class="song-btn" data-song="mary">🐑 Little Lamb</button>
+        <button class="song-btn" data-song="macdonald">🚜 Old MacDonald</button>
+        <button class="song-btn" data-song="wheels">🚌 Wheels on Bus</button>
+      </div>
+
+      <button class="demo-btn" id="demo-btn">▶️ Auto-Play Song</button>
+    </div>
+
+    <main class="concert-stage">
+      <div class="stage-banner" id="stage-banner">Slide your fingers across the rainbow keys!</div>
+      <canvas id="fx-canvas"></canvas>
+      <div class="choir-row" id="choir-row"></div>
+    </main>
+
+    <footer class="keyboard-bed" id="keyboard-bed"></footer>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    // 8 Rainbow C-Major Keys (0..7)
+    const KEYS = [
+      { idx: 0, note: 'C', solfege: 'Do',  freq: 261.63, color: '#EF4444', pet: '🐶', name: 'Doggie' },
+      { idx: 1, note: 'D', solfege: 'Re',  freq: 293.66, color: '#F97316', pet: '🐉', name: 'Sparky' },
+      { idx: 2, note: 'E', solfege: 'Mi',  freq: 329.63, color: '#FACC15', pet: '🐸', name: 'Froggy' },
+      { idx: 3, note: 'F', solfege: 'Fa',  freq: 349.23, color: '#22C55E', pet: '🐱', name: 'Kitty' },
+      { idx: 4, note: 'G', solfege: 'Sol', freq: 392.00, color: '#06B6D4', pet: '🦆', name: 'Ducky' },
+      { idx: 5, note: 'A', solfege: 'La',  freq: 440.00, color: '#3B82F6', pet: '🐷', name: 'Piggy' },
+      { idx: 6, note: 'B', solfege: 'Ti',  freq: 493.88, color: '#8B5CF6', pet: '🦁', name: 'Lion' },
+      { idx: 7, note: 'C', solfege: 'Do!', freq: 523.25, color: '#EC4899', pet: '🦄', name: 'Unicorn' }
+    ];
+
+    // Guided Kids Songs (Key Indexes 0..7)
+    const SONGS = {
+      twinkle: {
+        title: '⭐ Twinkle, Twinkle, Little Star',
+        notes: [0,0,4,4,5,5,4, 3,3,2,2,1,1,0, 4,4,3,3,2,2,1, 4,4,3,3,2,2,1, 0,0,4,4,5,5,4, 3,3,2,2,1,1,0]
+      },
+      mary: {
+        title: '🐑 Mary Had a Little Lamb',
+        notes: [2,1,0,1,2,2,2, 1,1,1, 2,4,4, 2,1,0,1,2,2,2,2, 1,1,2,1,0]
+      },
+      macdonald: {
+        title: '🚜 Old MacDonald Had a Farm',
+        notes: [4,4,4,1,2,2,1, 6,6,5,5,4, 1,4,4,4,1,2,2,1, 6,6,5,5,4]
+      },
+      wheels: {
+        title: '🚌 The Wheels on the Bus',
+        notes: [0,3,3,3,3,5,7,5,3, 4,4,4, 1,0,3, 0,3,3,3,3,5,7,5,3, 4,1,0,3]
+      }
+    };
+
+    let currentVoice = 'piano';
+    let currentSong = 'free';
+    let songStep = 0;
+    let autoPlayTimer = null;
+    let activePointers = new Map(); // pointerId -> keyIdx for smooth glissando!
+    let particles = [];
+    let audioCtx = null;
+
+    const canvas = document.getElementById('fx-canvas');
+    const CW = 900, CH = 340;
+    canvas.width = CW; canvas.height = CH;
+    const ctx = canvas.getContext('2d');
+
+    // 1. Pixel Tablet Viewport Stabilizer
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    window.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
+
+    // 2. Real-Time Multi-Voice Web Audio Synthesizer
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playInstrumentNote(freq) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      if (currentVoice === 'piano') {
+        osc1.type = 'triangle';
+        osc2.type = 'sine';
+        osc1.frequency.setValueAtTime(freq, now);
+        osc2.frequency.setValueAtTime(freq * 2, now);
+        gain.gain.setValueAtTime(0.34, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc1.connect(gain); osc2.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc1.start(now); osc2.start(now);
+        osc1.stop(now + 0.65); osc2.stop(now + 0.65);
+      } else if (currentVoice === 'dog') {
+        // Bouncy pitched puppy bark!
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(freq * 0.85, now);
+        osc1.frequency.exponentialRampToValueAtTime(freq * 1.45, now + 0.06);
+        osc1.frequency.exponentialRampToValueAtTime(freq * 0.6, now + 0.22);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+        osc1.connect(gain); gain.connect(audioCtx.destination);
+        osc1.start(now); osc1.stop(now + 0.24);
+      } else if (currentVoice === 'cat') {
+        // Rising & falling musical meow!
+        osc1.type = 'triangle';
+        osc1.frequency.setValueAtTime(freq * 0.9, now);
+        osc1.frequency.linearRampToValueAtTime(freq * 1.25, now + 0.14);
+        osc1.frequency.linearRampToValueAtTime(freq * 1.0, now + 0.42);
+        gain.gain.setValueAtTime(0.02, now);
+        gain.gain.linearRampToValueAtTime(0.32, now + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.44);
+        osc1.connect(gain); gain.connect(audioCtx.destination);
+        osc1.start(now); osc1.stop(now + 0.44);
+      } else if (currentVoice === 'frog') {
+        // Croaky ribbit pitch hop!
+        osc1.type = 'square';
+        osc1.frequency.setValueAtTime(freq * 0.55, now);
+        osc1.frequency.exponentialRampToValueAtTime(freq * 1.35, now + 0.16);
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc1.connect(gain); gain.connect(audioCtx.destination);
+        osc1.start(now); osc1.stop(now + 0.18);
+      } else {
+        // Space Synth Lead
+        osc1.type = 'square';
+        osc2.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(freq, now);
+        osc2.frequency.setValueAtTime(freq * 1.006, now);
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        osc1.connect(gain); osc2.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc1.start(now); osc2.start(now);
+        osc1.stop(now + 0.5); osc2.stop(now + 0.5);
+      }
+    }
+
+    // 3. Build Choir & Keyboard UI
+    const choirRow = document.getElementById('choir-row');
+    const keyboardBed = document.getElementById('keyboard-bed');
+    const choirEls = [];
+    const keyEls = [];
+
+    KEYS.forEach((k) => {
+      const petDiv = document.createElement('div');
+      petDiv.className = 'choir-pet';
+      petDiv.innerHTML = `<div class="pet-avatar">${k.pet}</div>`;
+      petDiv.onpointerdown = () => triggerKey(k.idx);
+      choirRow.appendChild(petDiv);
+      choirEls.push(petDiv);
+
+      const keyDiv = document.createElement('div');
+      keyDiv.className = 'piano-key';
+      keyDiv.dataset.idx = k.idx;
+      keyDiv.style.background = `linear-gradient(180deg, ${k.color} 0%, ${k.color}DD 100%)`;
+      keyDiv.innerHTML = `
+        <div class="key-solfege">${k.solfege}</div>
+        <div class="key-letter">${k.note}</div>
+        <div class="key-dot"></div>
+      `;
+      keyboardBed.appendChild(keyDiv);
+      keyEls.push(keyDiv);
+    });
+
+    // 4. Trigger Key & Advance Guided Song Star
+    function updateGuidedStar() {
+      keyEls.forEach(el => el.classList.remove('target-guide'));
+      if (currentSong === 'free') return;
+      const song = SONGS[currentSong];
+      if (!song) return;
+      const targetIdx = song.notes[songStep % song.notes.length];
+      keyEls[targetIdx].classList.add('target-guide');
+    }
+
+    function triggerKey(idx) {
+      const k = KEYS[idx];
+      if (!k) return;
+
+      playInstrumentNote(k.freq);
+
+      // Animate Key & Choir Pet
+      const keyEl = keyEls[idx];
+      const petEl = choirEls[idx];
+      keyEl.classList.add('pressed');
+      petEl.classList.add('singing');
+      setTimeout(() => keyEl.classList.remove('pressed'), 180);
+      setTimeout(() => petEl.classList.remove('singing'), 240);
+
+      // Spawn Musical Notes & Starburst Above That Choir Pet
+      const laneX = ((idx + 0.5) / 8) * CW;
+      const symbols = ['🎵', '🎶', '⭐', '✨', k.pet];
+      for (let i = 0; i < 6; i++) {
+        particles.push({
+          x: laneX + (Math.random() - 0.5) * 40,
+          y: CH - 55,
+          vx: (Math.random() - 0.5) * 4,
+          vy: -3 - Math.random() * 4.5,
+          color: k.color,
+          symbol: i < 2 ? symbols[Math.floor(Math.random() * symbols.length)] : null,
+          size: 6 + Math.random() * 6,
+          life: 42
+        });
+      }
+
+      // If in Guided Song Mode & hit the target key, advance star!
+      if (currentSong !== 'free') {
+        const song = SONGS[currentSong];
+        const expected = song.notes[songStep % song.notes.length];
+        if (idx === expected) {
+          songStep++;
+          if (songStep >= song.notes.length) {
+            // Finished the whole song! Big celebration!
+            songStep = 0;
+            for (let i = 0; i < 8; i++) {
+              setTimeout(() => {
+                choirEls[i].classList.add('singing');
+                setTimeout(() => choirEls[i].classList.remove('singing'), 250);
+              }, i * 60);
+            }
+          }
+          updateGuidedStar();
+        }
+      }
+    }
+
+    // 5. Glissando Multi-Touch Handler Across the Keyboard
+    function getKeyIdxFromPoint(clientX, clientY) {
+      const el = document.elementFromPoint(clientX, clientY);
+      if (!el) return null;
+      const key = el.closest('.piano-key');
+      return key ? Number(key.dataset.idx) : null;
+    }
+
+    keyboardBed.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      keyboardBed.setPointerCapture(e.pointerId);
+      const idx = getKeyIdxFromPoint(e.clientX, e.clientY);
+      if (idx !== null) {
+        activePointers.set(e.pointerId, idx);
+        triggerKey(idx);
+      }
+    });
+
+    keyboardBed.addEventListener('pointermove', (e) => {
+      if (!activePointers.has(e.pointerId)) return;
+      const idx = getKeyIdxFromPoint(e.clientX, e.clientY);
+      const prevIdx = activePointers.get(e.pointerId);
+      if (idx !== null && idx !== prevIdx) {
+        activePointers.set(e.pointerId, idx);
+        triggerKey(idx);
+      }
+    });
+
+    window.addEventListener('pointerup', (e) => {
+      activePointers.delete(e.pointerId);
+    });
+
+    // 6. Voice & Song Switchers + Auto-Play Concert
+    document.querySelectorAll('.voice-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        stopAutoPlay();
+        currentVoice = btn.dataset.voice;
+        document.querySelectorAll('.voice-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        playInstrumentNote(523.25);
+      };
+    });
+
+    document.querySelectorAll('.song-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        stopAutoPlay();
+        currentSong = btn.dataset.song;
+        songStep = 0;
+        document.querySelectorAll('.song-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (currentSong === 'free') {
+          document.getElementById('stage-banner').textContent = 'Slide your fingers across the rainbow keys!';
+        } else {
+          document.getElementById('stage-banner').textContent = `${SONGS[currentSong].title} — Tap the ⭐ Key!`;
+        }
+        updateGuidedStar();
+      };
+    });
+
+    const demoBtn = document.getElementById('demo-btn');
+    function stopAutoPlay() {
+      if (autoPlayTimer) {
+        clearInterval(autoPlayTimer);
+        autoPlayTimer = null;
+      }
+      demoBtn.classList.remove('playing');
+      demoBtn.textContent = '▶️ Auto-Play Song';
+    }
+
+    demoBtn.onpointerdown = () => {
+      if (autoPlayTimer) {
+        stopAutoPlay();
+        return;
+      }
+      if (currentSong === 'free') {
+        currentSong = 'twinkle';
+        document.querySelectorAll('.song-btn').forEach(b => b.classList.toggle('active', b.dataset.song === 'twinkle'));
+      }
+      songStep = 0;
+      updateGuidedStar();
+      demoBtn.classList.add('playing');
+      demoBtn.textContent = '⏹️ Stop Song';
+
+      const song =
