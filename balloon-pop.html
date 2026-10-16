@@ -2,19 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Balloon Letter Pop!</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --app-w: 100vw;
+      --app-h: 100dvh;
+    }
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
-    body {
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
       font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
       background: linear-gradient(180deg, #8ECAE6 0%, #BDE0FE 65%, #A3E635 100%);
-      height: 100vh; width: 100vw; overflow: hidden; position: relative;
       touch-action: manipulation; transition: background 0.2s;
     }
+    #game-stage {
+      position: fixed; inset: 0;
+      width: var(--app-w); height: var(--app-h);
+      overflow: hidden;
+    }
 
-    /* Screen Shake & Scary Red Flash for Wrong Balloon! */
+    /* Screen Shake & Red Flash for Wrong Balloon! */
     body.wrong-flash {
       animation: shake 0.45s cubic-bezier(.36,.07,.19,.97) both;
     }
@@ -23,7 +32,7 @@
       background: rgba(239, 71, 111, 0.55);
       pointer-events: none; z-index: 50;
     }
-    /* Obvious Green Glow for Correct Balloon! */
+    /* Green Glow for Correct Balloon! */
     body.correct-flash::after {
       content: ''; position: fixed; inset: 0;
       background: rgba(6, 214, 160, 0.32);
@@ -39,37 +48,54 @@
 
     /* Top HUD */
     header {
-      position: absolute; top: 16px; left: 24px; right: 24px; z-index: 20;
+      position: absolute; top: 14px; left: 20px; right: 20px; z-index: 25;
       display: flex; justify-content: space-between; align-items: flex-start;
-      pointer-events: none;
+      pointer-events: none; gap: 12px;
     }
-    .back-btn, .level-pill {
+    .hud-right {
+      display: flex; align-items: center; gap: 12px; pointer-events: auto;
+    }
+    .back-btn, .level-pill, .strikes-pill {
       pointer-events: auto;
       background: rgba(255,255,255,0.92); border: 4px solid #fff;
-      padding: 12px 24px; border-radius: 40px; font-size: 22px; font-weight: 700;
+      padding: 10px 20px; border-radius: 40px; font-size: 20px; font-weight: 700;
       color: #1D3557; box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-      display: flex; align-items: center; gap: 10px; cursor: pointer;
-      text-decoration: none;
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+      text-decoration: none; white-space: nowrap;
+    }
+    .strike-heart {
+      font-size: 24px; transition: transform 0.25s, filter 0.25s; display: inline-block;
+    }
+    .strike-heart.lost {
+      filter: grayscale(1) opacity(0.35); transform: scale(0.8);
     }
 
     /* Picture Reference Card at Top Center */
     .ref-card {
+      pointer-events: auto;
       background: rgba(255,255,255,0.95); border: 5px solid #fff;
-      border-radius: 32px; padding: 10px 32px;
-      display: flex; align-items: center; gap: 18px;
+      border-radius: 32px; padding: 8px 26px;
+      display: flex; align-items: center; gap: 16px;
       box-shadow: 0 10px 28px rgba(0,0,0,0.16);
       transition: transform 0.3s;
     }
-    .ref-card.bounce { transform: scale(1.12); }
-    .ref-emoji { font-size: 64px; line-height: 1; }
+    .ref-card.bounce { transform: scale(1.1); }
+    .ref-emoji { font-size: 56px; line-height: 1; cursor: pointer; }
     .ref-info { display: flex; flex-direction: column; }
-    .ref-label { font-size: 14px; font-weight: 700; color: #457B9D; text-transform: uppercase; letter-spacing: 1px; }
-    .ref-word { font-size: 36px; font-weight: 700; color: #1D3557; letter-spacing: 4px; }
+    .ref-label { font-size: 13px; font-weight: 700; color: #457B9D; text-transform: uppercase; letter-spacing: 1px; }
+    .ref-word { display: flex; gap: 4px; font-size: 34px; font-weight: 700; color: #1D3557; }
+    .ref-char {
+      cursor: pointer; padding: 0 3px; border-radius: 8px;
+      transition: transform 0.15s, background 0.15s, color 0.15s;
+    }
+    .ref-char.speaking {
+      background: #FFD166; color: #1D3557; transform: scale(1.2);
+    }
 
     /* Bottom Letter Slots Bar */
     .name-bar {
-      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-      z-index: 20; background: rgba(255,255,255,0.94); padding: 14px 30px;
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 25; background: rgba(255,255,255,0.94); padding: 12px 26px;
       border-radius: 44px; display: flex; gap: 14px;
       box-shadow: 0 10px 28px rgba(0,0,0,0.18); border: 5px solid #fff;
     }
@@ -77,12 +103,18 @@
       width: 68px; height: 76px; border-radius: 20px;
       background: #E2F1FF; border: 4px dashed #4EA8DE;
       display: flex; align-items: center; justify-content: center;
-      font-size: 42px; font-weight: 700; color: rgba(29,53,87,0.28);
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      font-size: 42px; font-weight: 700; color: rgba(29,53,87,0.35);
+      cursor: pointer; position: relative;
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     .name-slot.filled {
       background: #06D6A0; border: 4px solid #fff; color: #fff;
-      transform: scale(1.12); box-shadow: 0 6px 16px rgba(6,214,160,0.5);
+      transform: scale(1.1); box-shadow: 0 6px 16px rgba(6,214,160,0.5);
+    }
+    .name-slot.speaking {
+      transform: scale(1.24) translateY(-6px);
+      box-shadow: 0 10px 24px rgba(255, 202, 58, 0.75);
+      border-color: #FFCA3A;
     }
 
     /* Clouds */
@@ -97,13 +129,21 @@
 
     /* Balloons */
     .balloon {
-      position: absolute; width: 128px; height: 152px;
+      position: absolute; width: 124px; height: 148px;
       border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 62px; font-weight: 700; color: #fff;
+      font-size: 60px; font-weight: 700; color: #fff;
       text-shadow: 0 3px 6px rgba(0,0,0,0.25);
       box-shadow: inset -14px -14px 0 rgba(0,0,0,0.12), 0 12px 24px rgba(0,0,0,0.15);
-      cursor: pointer; z-index: 10;
+      cursor: pointer; z-index: 10; transition: transform 0.18s;
+    }
+    .balloon.ignored-wobble {
+      animation: shrugWobble 0.35s ease-in-out;
+    }
+    @keyframes shrugWobble {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      25% { transform: scale(0.92) rotate(-8deg); }
+      75% { transform: scale(0.92) rotate(8deg); }
     }
     .balloon::before {
       content: ''; position: absolute; top: 22px; left: 26px;
@@ -117,7 +157,7 @@
 
     /* Pop Feedback Bursts */
     .pop-burst {
-      position: absolute; font-size: 86px; font-weight: 700;
+      position: absolute; font-size: 82px; font-weight: 700;
       pointer-events: none; z-index: 30;
       animation: burstOut 0.75s ease-out forwards;
     }
@@ -127,51 +167,80 @@
       100% { transform: scale(2.1) translateY(-45px); opacity: 0; }
     }
 
-    /* Level Complete Overlay */
-    #win-overlay {
+    /* Overlays (Level Win & Game Over) */
+    .modal-overlay {
       display: none; position: fixed; inset: 0; z-index: 60;
-      background: rgba(29, 53, 87, 0.7); backdrop-filter: blur(4px);
+      background: rgba(29, 53, 87, 0.72); backdrop-filter: blur(5px);
       align-items: center; justify-content: center; flex-direction: column;
     }
-    .win-card {
-      background: #fff; border-radius: 40px; padding: 40px 60px;
-      text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    .modal-card {
+      background: #fff; border-radius: 40px; padding: 36px 56px;
+      text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.35);
       animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
     }
     @keyframes popIn {
       from { transform: scale(0.5); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
     }
-    .win-emoji { font-size: 110px; margin-bottom: 10px; }
-    .win-word { font-size: 56px; font-weight: 700; color: #06D6A0; letter-spacing: 6px; }
+    .modal-emoji { font-size: 100px; line-height: 1; }
+    .modal-title { font-size: 52px; font-weight: 700; color: #06D6A0; letter-spacing: 4px; }
+    .modal-title.gameover { color: #EF476F; letter-spacing: 2px; }
+    .modal-sub { font-size: 24px; font-weight: 700; color: #457B9D; margin-bottom: 8px; }
+    .retry-btn {
+      background: #06D6A0; color: #fff; border: none; border-radius: 999px;
+      padding: 16px 42px; font-size: 28px; font-weight: 700; font-family: inherit;
+      cursor: pointer; box-shadow: 0 10px 24px rgba(6, 214, 160, 0.45);
+      transition: transform 0.15s;
+    }
+    .retry-btn:active { transform: scale(0.95); }
   </style>
 </head>
 <body>
+  <div id="game-stage">
+    <div class="cloud" style="top: 14%; animation-duration: 38s;">☁️</div>
+    <div class="cloud" style="top: 32%; animation-duration: 52s; animation-delay: -20s; font-size: 120px;">☁️</div>
+    <div class="cloud" style="top: 10%; animation-duration: 45s; animation-delay: -10s;">☁️</div>
 
-  <div class="cloud" style="top: 14%; animation-duration: 38s;">☁️</div>
-  <div class="cloud" style="top: 32%; animation-duration: 52s; animation-delay: -20s; font-size: 120px;">☁️</div>
-  <div class="cloud" style="top: 10%; animation-duration: 45s; animation-delay: -10s;">☁️</div>
+    <header>
+      <a href="index.html" class="back-btn">🏠 Back</a>
 
-  <header>
-    <a href="index.html" class="back-btn">🏠 Back</a>
-
-    <div class="ref-card" id="ref-card">
-      <div class="ref-emoji" id="ref-emoji">🦖</div>
-      <div class="ref-info">
-        <div class="ref-label" id="ref-label">Spell Your Name!</div>
-        <div class="ref-word" id="ref-word">WYATT</div>
+      <div class="ref-card" id="ref-card">
+        <div class="ref-emoji" id="ref-emoji" title="Tap to hear word!">🦖</div>
+        <div class="ref-info">
+          <div class="ref-label" id="ref-label">Tap Any Letter to Hear It!</div>
+          <div class="ref-word" id="ref-word"></div>
+        </div>
       </div>
+
+      <div class="hud-right">
+        <div class="strikes-pill" id="strikes-pill" title="3 Strikes = Game Over">
+          <span class="strike-heart">❤️</span>
+          <span class="strike-heart">❤️</span>
+          <span class="strike-heart">❤️</span>
+        </div>
+        <div class="level-pill">⭐ Level <span id="level-num">1</span></div>
+      </div>
+    </header>
+
+    <div class="name-bar" id="name-bar"></div>
+  </div>
+
+  <!-- Win Modal -->
+  <div id="win-overlay" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-emoji" id="win-emoji">🏆</div>
+      <div class="modal-title" id="win-word">WYATT!</div>
     </div>
+  </div>
 
-    <div class="level-pill">⭐ Level <span id="level-num">1</span></div>
-  </header>
-
-  <div class="name-bar" id="name-bar"></div>
-
-  <div id="win-overlay">
-    <div class="win-card">
-      <div class="win-emoji" id="win-emoji">🏆</div>
-      <div class="win-word" id="win-word">WYATT!</div>
+  <!-- 3-Strike Game Over Modal -->
+  <div id="gameover-overlay" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-emoji">💥🎈</div>
+      <div class="modal-title gameover">3 Strikes!</div>
+      <div class="modal-sub">Only pop the letters in the word!</div>
+      <button class="retry-btn" id="retry-btn">🔄 Try Again!</button>
     </div>
   </div>
 
@@ -180,12 +249,11 @@
     const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
     const isEmma = profile === 'emma';
 
-    // Level 1 is their name; Levels 2+ are everyday objects with reference emojis!
     const levels = [
       {
         word: isEmma ? 'EMMA' : 'WYATT',
         emoji: isEmma ? '🦄' : '🦖',
-        label: 'Spell Your Name!'
+        label: 'Spell Your Name! (Tap a Letter to Hear It)'
       },
       { word: 'DOG',  emoji: '🐶', label: 'Find the Letters!' },
       { word: 'CAT',  emoji: '🐱', label: 'Find the Letters!' },
@@ -201,24 +269,106 @@
 
     const allAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
     const colors = ['#FF595E', '#FFCA3A', '#8AC926', '#1982C4', '#6A4C93', '#FF924C', '#F15BB5'];
+    const MAX_STRIKES = 3;
 
     let currentLevelIdx = 0;
     let targetLetters = [];
     let filledSlots = [];
+    let strikes = 0;
+    let isPaused = false;
     let balloons = [];
     let audioCtx = null;
+    let stageW = window.innerWidth;
+    let stageH = window.innerHeight;
 
+    // =========================================================================
+    // 1. PIXEL TABLET WEBAPK VIEWPORT STABILIZER (Fixes App-Switch Resize Bug)
+    // =========================================================================
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        stageW = w;
+        stageH = h;
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+
+        // Clamp any active balloons so none sit off-screen after fullscreen bar hides
+        for (const b of balloons) {
+          if (b.startX > stageW - 150) {
+            b.startX = Math.max(40, stageW - 150);
+          }
+        }
+      }
+    }
+
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('orientationchange', () => setTimeout(syncViewport, 120));
+    window.addEventListener('pageshow', syncViewport);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) syncViewport();
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncViewport);
+    }
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(syncViewport).observe(document.documentElement);
+    }
+    // Multi-frame launch poll while Android hides system status/navigation bars
+    [0, 60, 180, 400, 800].forEach((ms) => setTimeout(syncViewport, ms));
+
+    // =========================================================================
+    // 2. AUDIO & SPOKEN LETTER VOICE ENGINE
+    // =========================================================================
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    // Bright, joyful rising arcade chime for CORRECT letter
+    const PHONETIC_NAMES = {
+      A: 'A', B: 'Bee', C: 'See', D: 'Dee', E: 'E', F: 'Eff', G: 'Jee',
+      H: 'Aitch', I: 'Eye', J: 'Jay', K: 'Kay', L: 'El', M: 'Em', N: 'En',
+      O: 'Oh', P: 'Pee', Q: 'Cue', R: 'Ar', S: 'Ess', T: 'Tee', U: 'You',
+      V: 'Vee', W: 'Double-U', X: 'Ex', Y: 'Why', Z: 'Zee'
+    };
+
+    function speakTextOrLetter(letterOrWord, highlightEl) {
+      initAudio();
+      if (highlightEl) {
+        highlightEl.classList.add('speaking');
+        setTimeout(() => highlightEl.classList.remove('speaking'), 450);
+      }
+
+      // Soft friendly pop tone on tap
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.09);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.1);
+
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const isSingleLetter = letterOrWord.length === 1;
+        const spoken = isSingleLetter ? (PHONETIC_NAMES[letterOrWord.toUpperCase()] || letterOrWord) : letterOrWord;
+        const u = new SpeechSynthesisUtterance(spoken);
+        u.rate = isSingleLetter ? 0.85 : 0.92;
+        u.pitch = 1.12;
+        window.speechSynthesis.speak(u);
+      }
+    }
+
     function playCorrectSound() {
       initAudio();
       const now = audioCtx.currentTime;
-      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
-      notes.forEach((freq, i) => {
+      [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'triangle';
@@ -232,7 +382,6 @@
       });
     }
 
-    // Scary/Obvious low monster buzzer horn for WRONG balloon!
     function playWrongSound() {
       initAudio();
       const now = audioCtx.currentTime;
@@ -251,12 +400,28 @@
       });
     }
 
-    // Grand fanfare when all letters of the word are found!
+    function playGameOverSound() {
+      initAudio();
+      const now = audioCtx.currentTime;
+      [392, 369.99, 349.23, 311.13].forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now + i * 0.18);
+        gain.gain.setValueAtTime(0.22, now + i * 0.18);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.18 + 0.28);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now + i * 0.18);
+        osc.stop(now + i * 0.18 + 0.28);
+      });
+    }
+
     function playLevelWinSound() {
       initAudio();
       const now = audioCtx.currentTime;
       const melody = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50];
-      const times  = [0,      0.12,   0.24,   0.36,    0.52,   0.66];
+      const times  = [0, 0.12, 0.24, 0.36, 0.52, 0.66];
       melody.forEach((freq, i) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
@@ -271,16 +436,52 @@
       });
     }
 
+    // =========================================================================
+    // 3. LEVEL, STRIKES & INTERACTIVE LETTER SLOTS
+    // =========================================================================
+    function renderStrikes() {
+      const hearts = document.querySelectorAll('#strikes-pill .strike-heart');
+      hearts.forEach((h, idx) => {
+        h.classList.toggle('lost', idx >= (MAX_STRIKES - strikes));
+      });
+    }
+
+    function clearAllBalloons() {
+      for (const b of balloons) {
+        b.el.remove();
+      }
+      balloons = [];
+    }
+
     function loadLevel(idx) {
+      syncViewport();
       currentLevelIdx = idx % levels.length;
       const lvl = levels[currentLevelIdx];
       targetLetters = lvl.word.split('');
       filledSlots = targetLetters.map(() => false);
+      strikes = 0;
+      isPaused = false;
+      renderStrikes();
 
       document.getElementById('level-num').textContent = currentLevelIdx + 1;
-      document.getElementById('ref-emoji').textContent = lvl.emoji;
+      const emojiEl = document.getElementById('ref-emoji');
+      emojiEl.textContent = lvl.emoji;
+      emojiEl.onclick = () => speakTextOrLetter(lvl.word, emojiEl);
       document.getElementById('ref-label').textContent = lvl.label;
-      document.getElementById('ref-word').textContent = lvl.word;
+
+      // Make each letter in the top reference card tappable to speak its letter name!
+      const refWordEl = document.getElementById('ref-word');
+      refWordEl.innerHTML = '';
+      targetLetters.forEach((letter) => {
+        const span = document.createElement('span');
+        span.className = 'ref-char';
+        span.textContent = letter;
+        span.onpointerdown = (e) => {
+          e.stopPropagation();
+          speakTextOrLetter(letter, span);
+        };
+        refWordEl.appendChild(span);
+      });
 
       renderSlots();
     }
@@ -292,33 +493,43 @@
         const slot = document.createElement('div');
         slot.className = 'name-slot' + (filledSlots[idx] ? ' filled' : '');
         slot.textContent = letter;
+        // Tapping any letter slot in the word bar speaks the letter aloud!
+        slot.onpointerdown = (e) => {
+          e.stopPropagation();
+          speakTextOrLetter(letter, slot);
+        };
         nameBar.appendChild(slot);
       });
     }
 
     function spawnBalloon() {
+      if (isPaused) return;
+      const stage = document.getElementById('game-stage');
       const el = document.createElement('div');
       el.className = 'balloon';
 
-      // Find which letters the kid still needs
       const neededLetters = targetLetters.filter((_, idx) => !filledSlots[idx]);
-      const neededSet = new Set(neededLetters);
-      const decoyLetters = allAlphabet.filter(l => !neededSet.has(l));
+      const allWordLettersSet = new Set(targetLetters);
+      const strictDecoyLetters = allAlphabet.filter(l => !allWordLettersSet.has(l));
 
-      // Target letters are RARE (18% chance) so most balloons are other alphabet letters!
       let letter;
-      if (neededLetters.length > 0 && Math.random() < 0.18) {
+      const roll = Math.random();
+      if (neededLetters.length > 0 && roll < 0.24) {
         letter = neededLetters[Math.floor(Math.random() * neededLetters.length)];
+      } else if (roll < 0.34) {
+        // Occasional duplicate of a letter already in the word
+        letter = targetLetters[Math.floor(Math.random() * targetLetters.length)];
       } else {
-        letter = decoyLetters[Math.floor(Math.random() * decoyLetters.length)];
+        letter = strictDecoyLetters[Math.floor(Math.random() * strictDecoyLetters.length)];
       }
 
       el.textContent = letter;
       el.style.background = colors[Math.floor(Math.random() * colors.length)];
 
-      const startX = 60 + Math.random() * (window.innerWidth - 200);
-      let y = window.innerHeight + 160;
-      const speed = isEmma ? (1.3 + Math.random() * 0.9) : (1.7 + Math.random() * 1.2);
+      const usableW = Math.max(200, stageW - 180);
+      const startX = 40 + Math.random() * usableW;
+      let y = stageH + 150;
+      const speed = isEmma ? (1.3 + Math.random() * 0.85) : (1.65 + Math.random() * 1.15);
       const wobbleSpeed = 0.02 + Math.random() * 0.02;
       let angle = Math.random() * Math.PI * 2;
 
@@ -329,22 +540,33 @@
 
       el.onpointerdown = (e) => {
         e.stopPropagation();
-        if (bObj.popped) return;
-        bObj.popped = true;
+        if (bObj.popped || isPaused) return;
 
-        // Order doesn't matter! Check if ANY unfilled slot matches the popped balloon's letter
+        // CASE 1: Needed letter for an unfilled slot
         const matchIdx = targetLetters.findIndex((tLetter, idx) => tLetter === letter && !filledSlots[idx]);
 
+        // CASE 2: Duplicate & unneeded letter (Letter IS in the word, but all its slots are already filled!)
+        const isDuplicateInWord = matchIdx === -1 && targetLetters.includes(letter);
+
+        if (isDuplicateInWord) {
+          // Simply ignore! No strike, no pop, no dopamine celebration.
+          el.classList.remove('ignored-wobble');
+          void el.offsetWidth;
+          el.classList.add('ignored-wobble');
+          return;
+        }
+
+        bObj.popped = true;
         const burst = document.createElement('div');
         burst.className = 'pop-burst';
         burst.style.left = el.style.left;
         burst.style.top = el.style.top;
 
         if (matchIdx !== -1) {
-          // CORRECT LETTER!
           filledSlots[matchIdx] = true;
           renderSlots();
           playCorrectSound();
+          speakTextOrLetter(letter);
 
           burst.textContent = '🌟🎉';
           document.body.classList.add('correct-flash');
@@ -354,35 +576,44 @@
           refCard.classList.add('bounce');
           setTimeout(() => refCard.classList.remove('bounce'), 300);
 
-          // Check if all letters are found!
           if (filledSlots.every(Boolean)) {
+            isPaused = true;
             setTimeout(handleLevelWin, 450);
           }
         } else {
-          // WRONG LETTER - Scary/Obvious buzzer + screen shake + red flash!
+          // CASE 3: Wrong letter! Add a strike (3 strikes = Game Over)
+          strikes++;
+          renderStrikes();
           playWrongSound();
           burst.textContent = '👻❌';
           document.body.classList.remove('wrong-flash');
-          void document.body.offsetWidth; // trigger reflow
+          void document.body.offsetWidth;
           document.body.classList.add('wrong-flash');
           setTimeout(() => document.body.classList.remove('wrong-flash'), 480);
+
+          if (strikes >= MAX_STRIKES) {
+            isPaused = true;
+            setTimeout(handleGameOver, 520);
+          }
         }
 
-        document.body.appendChild(burst);
+        stage.appendChild(burst);
         setTimeout(() => burst.remove(), 750);
         el.remove();
       };
 
-      document.body.appendChild(el);
+      stage.appendChild(el);
       balloons.push(bObj);
     }
 
     function handleLevelWin() {
+      clearAllBalloons();
       playLevelWinSound();
       const lvl = levels[currentLevelIdx];
       document.getElementById('win-emoji').textContent = lvl.emoji;
       document.getElementById('win-word').textContent = lvl.word + '!';
       document.getElementById('win-overlay').style.display = 'flex';
+      speakTextOrLetter(lvl.word);
 
       setTimeout(() => {
         document.getElementById('win-overlay').style.display = 'none';
@@ -390,22 +621,35 @@
       }, 2800);
     }
 
-    function animate() {
-      for (let i = balloons.length - 1; i >= 0; i--) {
-        const b = balloons[i];
-        if (b.popped) {
-          balloons.splice(i, 1);
-          continue;
-        }
-        b.y -= b.speed;
-        b.angle += b.wobbleSpeed;
-        const xOffset = Math.sin(b.angle) * 25;
-        b.el.style.top = `${b.y}px`;
-        b.el.style.left = `${b.startX + xOffset}px`;
+    function handleGameOver() {
+      clearAllBalloons();
+      playGameOverSound();
+      document.getElementById('gameover-overlay').style.display = 'flex';
+    }
 
-        if (b.y < -200) {
-          b.el.remove();
-          balloons.splice(i, 1);
+    document.getElementById('retry-btn').onclick = () => {
+      document.getElementById('gameover-overlay').style.display = 'none';
+      loadLevel(currentLevelIdx);
+    };
+
+    function animate() {
+      if (!isPaused) {
+        for (let i = balloons.length - 1; i >= 0; i--) {
+          const b = balloons[i];
+          if (b.popped) {
+            balloons.splice(i, 1);
+            continue;
+          }
+          b.y -= b.speed;
+          b.angle += b.wobbleSpeed;
+          const xOffset = Math.sin(b.angle) * 25;
+          b.el.style.top = `${b.y}px`;
+          b.el.style.left = `${b.startX + xOffset}px`;
+
+          if (b.y < -200) {
+            b.el.remove();
+            balloons.splice(i, 1);
+          }
         }
       }
       requestAnimationFrame(animate);
@@ -413,7 +657,6 @@
 
     loadLevel(0);
     animate();
-    // Spawn balloons steadily so the sky stays active while waiting for rare letters
     setInterval(spawnBalloon, isEmma ? 1150 : 950);
     spawnBalloon();
     setTimeout(spawnBalloon, 450);
