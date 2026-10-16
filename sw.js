@@ -9,6 +9,7 @@ const SHELL = [
   '/rocket-count.html',
   '/finger-paint.html',
   '/letter-trace.html',
+  '/number-trace.html',
   '/animal-match.html',
   '/manifest.json',
   '/engine/diorama-engine.css',

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Neon Number Coaster!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --app-w: 100vw; --app-h: 100dvh; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
+      font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+      background: radial-gradient(circle at 50% 30%, #2E1065 0%, #0F172A 65%, #020617 100%);
+      color: #fff; touch-action: none;
+    }
+    #app-stage {
+      position: fixed; inset: 0; width: var(--app-w); height: var(--app-h);
+      display: grid; grid-template-rows: 74px 1fr 84px; padding: 12px 18px; gap: 10px;
+    }
+    body.party-bump { animation: partyBump 0.22s ease-out; }
+    @keyframes partyBump {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.015); }
+    }
+
+    /* Top Header */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(15, 23, 42, 0.92); border: 3px solid #F472B6;
+      border-radius: 26px; padding: 8px 18px; gap: 12px; z-index: 20;
+      box-shadow: 0 8px 24px rgba(244, 114, 182, 0.25);
+    }
+    .nav-btn, .combo-pill, .qty-preview {
+      font-family: inherit; font-weight: 700; font-size: 18px;
+      background: #1E293B; color: #F8FAFC; border: 3px solid #475569;
+      padding: 8px 16px; border-radius: 20px;
+      display: flex; align-items: center; gap: 8px; text-decoration: none; white-space: nowrap;
+    }
+    .nav-btn { cursor: pointer; }
+    .qty-preview {
+      background: rgba(88, 28, 135, 0.65); border-color: #C084FC;
+      font-size: 24px; letter-spacing: 3px; padding: 6px 20px;
+    }
+    .combo-pill {
+      background: linear-gradient(135deg, #F59E0B, #EF4444);
+      border-color: #FEF08A; color: #FFF; font-size: 20px;
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.5);
+      transition: transform 0.15s;
+    }
+    .combo-pill.pop { transform: scale(1.22); }
+
+    /* Center Neon Coaster Arena */
+    .arena {
+      position: relative; width: 100%; height: 100%;
+      background: radial-gradient(circle at 50% 50%, #1E1B4B 0%, #090D16 100%);
+      border-radius: 30px; border: 4px solid #38BDF8; overflow: hidden;
+      box-shadow: inset 0 0 50px rgba(56, 189, 248, 0.2), 0 12px 30px rgba(0,0,0,0.5);
+    }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .coach-banner {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92); border: 3px solid #FDE047;
+      color: #FEF08A; padding: 7px 24px; border-radius: 99px;
+      font-size: 22px; font-weight: 700; cursor: pointer; z-index: 15;
+      white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    }
+
+    /* Interactive Pop-the-Prizes Bonus Layer */
+    #prize-layer {
+      position: absolute; inset: 0; pointer-events: none; z-index: 12;
+    }
+    .prize-orb {
+      position: absolute; width: 104px; height: 104px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #FFF 0%, #FDE047 35%, #F472B6 100%);
+      border: 5px solid #FFF; display: flex; align-items: center; justify-content: center;
+      font-size: 58px; cursor: pointer; pointer-events: auto;
+      box-shadow: 0 0 28px rgba(253, 224, 71, 0.85);
+      animation: floatOrb 1.2s infinite alternate ease-in-out;
+      transition: transform 0.15s;
+    }
+    @keyframes floatOrb {
+      from { transform: translateY(-6px) scale(0.96); }
+      to { transform: translateY(6px) scale(1.06); }
+    }
+
+    /* Bottom 0..10 Number Picker Bar */
+    footer {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: rgba(15, 23, 42, 0.92); border: 3px solid #F472B6;
+      border-radius: 26px; padding: 8px 14px; overflow-x: auto; z-index: 20;
+    }
+    .num-tile {
+      min-width: 56px; height: 58px; border-radius: 18px;
+      background: #1E293B; border: 3px solid #475569; color: #94A3B8;
+      font-size: 28px; font-weight: 700; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; transition: 0.2s; padding: 0 10px;
+    }
+    .num-tile.active {
+      background: linear-gradient(135deg, #38BDF8, #818CF8);
+      color: #FFF; border-color: #FFF;
+      transform: scale(1.14); box-shadow: 0 0 18px rgba(56,189,248,0.8);
+    }
+    .num-tile.done {
+      background: #06D6A0; color: #0F172A; border-color: #FFF;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-stage">
+    <header>
+      <a href="index.html" class="nav-btn">🏠 Back</a>
+      <div class="qty-preview" id="qty-preview">⭐</div>
+      <div class="combo-pill" id="combo-pill">💎 <span id="gem-score">0</span> Gems</div>
+    </header>
+
+    <main class="arena">
+      <div class="coach-banner" id="coach-banner">Trace Number 1!</div>
+      <canvas id="coaster-canvas"></canvas>
+      <div id="prize-layer"></div>
+    </main>
+
+    <footer id="number-bar"></footer>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    // Top-Down Number Coaster Tracks (0..10 in 0..100 Normalized Space)
+    const NUM_STROKES = {
+      0: [ [[50,12],[26,24],[20,50],[26,76],[50,88],[74,76],[80,50],[74,24],[50,12]] ],
+      1: [ [[50,12],[50,88]] ],
+      2: [ [[26,28],[38,14],[56,14],[72,24],[72,42],[24,86],[76,86]] ],
+      3: [ [[28,20],[50,12],[72,22],[68,40],[46,48],[70,58],[74,76],[50,88],[26,78]] ],
+      4: [ [[62,14],[24,62],[78,62]], [[62,14],[62,88]] ],
+      5: [ [[70,14],[32,14],[28,46],[56,44],[74,56],[72,76],[50,88],[26,78]] ],
+      6: [ [[68,16],[40,26],[24,52],[28,76],[50,88],[72,76],[72,56],[50,48],[26,58]] ],
+      7: [ [[22,14],[76,14],[38,88]] ],
+      8: [ [[50,12],[28,22],[30,40],[50,50],[70,60],[72,78],[50,88],[28,78],[30,60],[50,50],[70,40],[72,22],[50,12]] ],
+      9: [ [[72,34],[50,48],[28,36],[28,20],[50,12],[72,22],[72,56],[54,88],[32,84]] ],
+      10: [
+        [[26,14],[26,86]],
+        [[66,14],[48,26],[44,50],[48,74],[66,86],[84,74],[88,50],[84,26],[66,14]]
+      ]
+    };
+
+    const PRIZE_EMOJIS = ['🦖', '🦄', '🚀', '🐉', '🐶', '🌈', '⭐', '🍕', '🍦', '👑'];
+    const SCALE_NOTES = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+
+    const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0];
+    let numIdx = 0;
+    let strokeIdx = 0;
+    let densePath = [];
+    let gems = [];
+    let progressIdx = 0;
+    let isTracing = false;
+    let pointerDown = false;
+    let strokeCompleted = false;
+    let inPrizePhase = false;
+    let gemScore = 0;
+    let hue = 0;
+    let tick = 0;
+    let particles = [];
+    let popups = [];
+    let completedSet = new Set();
+    let audioCtx = null;
+
+    const CW = 900, CH = 500;
+    const canvas = document.getElementById('coaster-canvas');
+    canvas.width = CW; canvas.height = CH;
+    const ctx = canvas.getContext('2d');
+
+    // 1. Pixel Tablet Viewport Fix
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    window.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
+
+    // 2. Synth & Voice Audio
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(text) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(String(text));
+      u.rate = 0.95; u.pitch = 1.12;
+      window.speechSynthesis.speak(u);
+    }
+
+    function playTone(f1, f2, dur = 0.16, type = 'triangle', vol = 0.25) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f1, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + dur);
+    }
+
+    // 3. Coordinate & Gem Builder
+    function toCanvasXY(pt) {
+      return {
+        x: 230 + (pt[0] / 100) * 440,
+        y: 74 + (pt[1] / 100) * 372
+      };
+    }
+
+    function buildDenseStroke(rawPoints) {
+      const out = [];
+      for (let i = 0; i < rawPoints.length - 1; i++) {
+        const p1 = toCanvasXY(rawPoints[i]);
+        const p2 = toCanvasXY(rawPoints[i + 1]);
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const steps = Math.max(8, Math.ceil(dist / 6));
+        for (let s = 0; s < steps; s++) {
+          const t = s / steps;
+          out.push({ x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t });
+        }
+      }
+      out.push(toCanvasXY(rawPoints[rawPoints.length - 1]));
+      return out;
+    }
+
+    function buildGemsForStroke(path) {
+      const list = [];
+      const count = Math.min(12, Math.max(5, Math.floor(path.length / 8)));
+      for (let i = 1; i <= count; i++) {
+        const idx = Math.min(path.length - 1, Math.floor((i / count) * (path.length - 1)));
+        list.push({
+          idx,
+          x: path[idx].x,
+          y: path[idx].y,
+          collected: false,
+          color: `hsl(${(i * 38) % 360}, 95%, 62%)`
+        });
+      }
+      return list;
+    }
+
+    function spawnBurst(x, y, color, count = 18) {
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 2 + Math.random() * 8;
+        particles.push({
+          x, y,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp - 1.5,
+          color: i % 3 === 0 ? '#FDE047' : color,
+          size: 4 + Math.random() * 6,
+          life: 28 + Math.random() * 16
+        });
+      }
+    }
+
+    function spawnPopup(x, y, text, color = '#FDE047') {
+      popups.push({ x, y, text, color, life: 36 });
+    }
+
+    function renderNumberBar() {
+      const bar = document.getElementById('number-bar');
+      bar.innerHTML = '';
+      NUMBERS.forEach((n, idx) => {
+        const tile = document.createElement('div');
+        tile.className = 'num-tile' + (idx === numIdx ? ' active' : (completedSet.has(n) ? ' done' : ''));
+        tile.textContent = n;
+        tile.onpointerdown = () => {
+          numIdx = idx;
+          loadNumber(true);
+        };
+        bar.appendChild(tile);
+      });
+    }
+
+    function loadNumber(announce = true) {
+      inPrizePhase = false;
+      document.getElementById('prize-layer').innerHTML = '';
+      strokeIdx = 0;
+      progressIdx = 0;
+      isTracing = false;
+      pointerDown = false;
+      strokeCompleted = false;
+
+      const n = NUMBERS[numIdx];
+      const strokes = NUM_STROKES[n];
+      densePath = buildDenseStroke(strokes[0]);
+      gems = buildGemsForStroke(densePath);
+
+      const emoji = PRIZE_EMOJIS[numIdx % PRIZE_EMOJIS.length];
+      document.getElementById('qty-preview').textContent = n === 0 ? '⭕ Zero' : emoji.repeat(n);
+      document.getElementById('coach-banner').textContent = `Trace Number ${n}!`;
+      renderNumberBar();
+      if (announce) speak(n);
+    }
+
+    function loadNextStroke(sIdx) {
+      const n = NUMBERS[numIdx];
+      const strokes = NUM_STROKES[n];
+      strokeIdx = sIdx;
+      progressIdx = 0;
+      isTracing = false;
+      pointerDown = false;
+      strokeCompleted = false;
+      densePath = buildDenseStroke(strokes[strokeIdx]);
+      gems = buildGemsForStroke(densePath);
+      document.getElementById('coach-banner').textContent = `Number ${n} • Part ${strokeIdx + 1}!`;
+    }
+
+    document.getElementById('coach-banner').onpointerdown = () => speak(NUMBERS[numIdx]);
+
+    // 4. Pointer Coaster Controls
+    function getCanvasPt(e) {
+      const r = canvas.getBoundingClientRect();
+      return {
+        x: ((e.clientX - r.left) / r.width) * CW,
+        y: ((e.clientY - r.top) / r.height) * CH
+      };
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (strokeCompleted || inPrizePhase) return;
+      canvas.setPointerCapture(e.pointerId);
+      pointerDown = true;
+      const pt = getCanvasPt(e);
+      const targetPt = densePath[progressIdx];
+
+      if (Math.hypot(pt.x - targetPt.x, pt.y - targetPt.y) <= 68) {
+        isTracing = true;
+        playTone(440, 660, 0.12, 'triangle', 0.25);
+        spawnBurst(targetPt.x, targetPt.y, '#06D6A0', 12);
+      } else {
+        playTone(240, 190, 0.12, 'sine', 0.15);
+        spawnBurst(targetPt.x, targetPt.y, '#FDE047', 10);
+      }
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!pointerDown || strokeCompleted || inPrizePhase) return;
+      const pt = getCanvasPt(e);
+
+      if (!isTracing && progressIdx === 0) {
+        const startPt = densePath[0];
+        if (Math.hypot(pt.x - startPt.x, pt.y - startPt.y) <= 64) {
+          isTracing = true;
+          playTone(440, 660, 0.1, 'triangle', 0.22);
+        }
+        return;
+      }
+
+      if (!isTracing) return;
+
+      let bestIdx = progressIdx;
+      let minDist = Infinity;
+      const maxLookAhead = Math.min(densePath.length - 1, progressIdx + 18);
+
+      for (let i = progressIdx; i <= maxLookAhead; i++) {
+        const d = Math.hypot(pt.x - densePath[i].x, pt.y - densePath[i].y);
+        if (d < minDist) {
+          minDist = d;
+          bestIdx = i;
+        }
+      }
+
+      if (minDist <= 64 && bestIdx > progressIdx) {
+        progressIdx = bestIdx;
+        const cur = densePath[progressIdx];
+
+        // Rainbow trail sparks on every single move!
+        particles.push({
+          x: cur.x + (Math.random() - 0.5) * 14,
+          y: cur.y + (Math.random() - 0.5) * 14,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 0.5) * 4,
+          color: `hsl(${(hue + progressIdx * 4) % 360}, 95%, 60%)`,
+          size: 6 + Math.random() * 5,
+          life: 24
+        });
+
+        // Check if we vacuumed up any Star-Gems!
+        gems.forEach((g, gIdx) => {
+          if (!g.collected && progressIdx >= g.idx) {
+            g.collected = true;
+            gemScore += 10;
+            const pill = document.getElementById('combo-pill');
+            document.getElementById('gem-score').textContent = gemScore;
+            pill.classList.remove('pop');
+            void pill.offsetWidth;
+            pill.classList.add('pop');
+
+            const note = SCALE_NOTES[gIdx % SCALE_NOTES.length];
+            playTone(note, note * 1.25, 0.18, 'triangle', 0.3);
+            spawnBurst(g.x, g.y, g.color, 22);
+            const cheers = ['+10!', 'SUPER!', 'WOW!', 'TURBO!', 'STAR!'];
+            spawnPopup(g.x, g.y - 20, cheers[gIdx % cheers.length], g.color);
+          }
+        });
+
+        if (progressIdx >= densePath.length - 2) {
+          completeCurrentStroke();
+        }
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      pointerDown = false;
+      isTracing = false;
+    });
+
+    function completeCurrentStroke() {
+      if (strokeCompleted) return;
+      strokeCompleted = true;
+      isTracing = false;
+      pointerDown = false;
+
+      const n = NUMBERS[numIdx];
+      const strokes = NUM_STROKES[n];
+
+      if (strokeIdx + 1 < strokes.length) {
+        playTone(587.33, 880, 0.22, 'triangle', 0.3);
+        loadNextStroke(strokeIdx + 1);
+      } else {
+        // Number finished! Trigger Dopamine Pinata Prize Phase!
+        completedSet.add(n);
+        renderNumberBar();
+        document.body.classList.remove('party-bump');
+        void document.body.offsetWidth;
+        document.body.classList.add('party-bump');
+
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+          setTimeout(() => playTone(f, f * 1.05, 0.25, 'triangle', 0.32), i * 90);
+        });
+
+        startPrizePopPhase(n);
+      }
+    }
+
+    // 5. Interactive "Pop N Prizes" Jackpot After Tracing Each Number!
+    function startPrizePopPhase(n) {
+      inPrizePhase = true;
+      const layer = document.getElementById('prize-layer');
+      layer.innerHTML = '';
+
+      if (n === 0) {
+        speak('Zero!');
+        spawnBurst(CW / 2, CH / 2, '#38BDF8', 45);
+        setTimeout(() => {
+          numIdx = (numIdx + 1) % NUMBERS.length;
+          loadNumber(true);
+        }, 1400);
+        return;
+      }
+
+      const emoji = PRIZE_EMOJIS[numIdx % PRIZE_EMOJIS.length];
+      document.getElementById('coach-banner').textContent = `🎉 Pop All ${n} ${emoji} Prizes!`;
+      speak(`${n}! Pop ${n}!`);
+
+      let popped = 0;
+      for (let i = 0; i < n; i++) {
+        const orb = document.createElement('div');
+        orb.className = 'prize-orb';
+        orb.textContent = emoji;
+
+        const cols = Math.min(5, n);
+        const row = Math.floor(i / 5);
+        const col = i % 5;
+        const leftPct = 14 + (col + 0.5) * (72 / cols);
+        const topPct = n <= 5 ? (34 + (i % 2) * 18) : (22 + row * 36);
+
+        orb.style.left = `calc(${leftPct}% - 52px)`;
+        orb.style.top = `calc(${topPct}% - 52px)`;
+        orb.style.animationDelay = `${i * 0.12}s`;
+
+        orb.onpointerdown = (e) => {
+          e.stopPropagation();
+          if (orb.dataset.popped) return;
+          orb.dataset.popped = '1';
+          popped++;
+
+          const rect = canvas.getBoundingClientRect();
+          const cx = ((e.clientX - rect.left) / rect.width) * CW;
+          const cy = ((e.clientY - rect.top) / rect.height) * CH;
+
+          const note = SCALE_NOTES[(popped - 1) % SCALE_NOTES.length];
+          playTone(note, note * 1.4, 0.22, 'triangle', 0.35);
+          speak(popped);
+          spawnBurst(cx, cy, `hsl(${(popped * 50) % 360}, 95%, 60%)`, 30);
+          spawnPopup(cx, cy - 20, `${popped}!`, '#FDE047');
+
+          orb.style.transform = 'scale(1.5)';
+          orb.style.opacity = '0';
+          setTimeout(() => orb.remove(), 150);
+
+          if (popped >= n) {
+            setTimeout(() => {
+              numIdx = (numIdx + 1) % NUMBERS.length;
+              loadNumber(true);
+            }, 950);
+          }
+        };
+
+        layer.appendChild(orb);
+      }
+    }
+
+    // 6. 60 FPS Neon Coaster Renderer
+    function drawStrokePolyline(pts, width, color, dash = []) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      pts.forEach((p, idx) => {
+        const c = toCanvasXY(p);
+        if (idx === 0) ctx.moveTo(c.x, c.y);
+        else ctx.lineTo(c.x, c.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function render() {
+      tick++;
+      hue = (hue + 2) % 360;
+      ctx.clearRect(0, 0, CW, CH);
+
+      const n = NUMBERS[numIdx];
+      const strokes = NUM_STROKES[n];
+
+      // Draw Coaster Track Base
+      strokes.forEach((s, idx) => {
+        drawStrokePolyline(s, 64, 'rgba(30, 41, 59, 0.9)');
+        if (idx < strokeIdx || inPrizePhase) {
+          drawStrokePolyline(s, 52, `hsl(${(hue + idx * 60) % 360}, 92%, 58%)`);
+        } else {
+          drawStrokePolyline(s, 52, 'rgba(51, 65, 85, 0.75)');
+        }
+      });
+
+      if (!inPrizePhase) {
+        const activeRaw = strokes[strokeIdx];
+        drawStrokePolyline(activeRaw, 54, 'rgba(244, 114, 182, 0.28)');
+
+        // Animated Coaster Rail Ties
+        ctx.save();
+        ctx.lineDashOffset = -(tick * 1.5);
+        drawStrokePolyline(activeRaw, 8, 'rgba(253, 224, 71, 0.75)', [14, 20]);
+        ctx.restore();
+
+        // Rainbow Laser Progress Fill
+        if (progressIdx > 0 && densePath.length > 0) {
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.lineWidth = 48;
+          ctx.strokeStyle = `hsl(${hue}, 95%, 58%)`;
+          ctx.shadowColor = `hsl(${hue}, 95%, 58%)`;
+          ctx.shadowBlur = 22;
+          ctx.beginPath();
+          for (let i = 0; i <= progressIdx; i++) {
+            if (i === 0) ctx.moveTo(densePath[i].x, densePath[i].y);
+            else ctx.lineTo(densePath[i].x, densePath[i].y);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Collectible Star-Gems on the Track
+        gems.forEach((g, i) => {
+          if (g.collected) return;
+          const bounce = Math.sin(tick * 0.12 + i) * 4;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(g.x, g.y + bounce, 15, 0, Math.PI * 2);
+          ctx.fillStyle = g.color;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = '#FFF';
+          ctx.stroke();
+          ctx.font = '18px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('💎', g.x, g.y + bounce);
+          ctx.restore();
+        });
+
+        // Finish Flag & Coaster Cart Pod
+        if (densePath.length > 1) {
+          const endPt = densePath[densePath.length - 1];
+          ctx.beginPath();
+          ctx.arc(endPt.x, endPt.y, 25, 0, Math.PI * 2);
+          ctx.fillStyle = '#F59E0B';
+          ctx.fill();
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = '#FFF';
+          ctx.stroke();
+          ctx.font = '24px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🏁', endPt.x, endPt.y);
+
+          const curPt = densePath[progressIdx];
+          const pulse = 30 + Math.sin(tick * 0.16) * 4;
+          ctx.beginPath();
+          ctx.arc(curPt.x, curPt.y, pulse, 0, Math.PI * 2);
+          ctx.fillStyle = '#06D6A0';
+          ctx.fill();
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = '#FFF';
+          ctx.stroke();
+          ctx.font = '32px sans-serif';
+          ctx.fillText(progressIdx === 0 ? '⭐' : (isEmma ? '🐶' : '🐉'), curPt.x, curPt.y);
+        }
+      }
+
+      // Draw Fireworks Particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.18; p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (p.life / 36), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw Floating Score / Cheer Popups
+      for (let i = popups.length - 1; i >= 0; i--) {
+        const pop = popups[i];
+        pop.y -= 1.4; pop.life--;
+        if (pop.life <= 0) { popups.splice(i, 1); continue; }
+        ctx.save();
+        ctx.font = 'bold 28px Fredoka, sans-serif';
+        ctx.fillStyle = pop.color;
+        ctx.strokeStyle = '#0F172A';
+        ctx.lineWidth = 5;
+        ctx.textAlign = 'center';
+        ctx.strokeText(pop.text, pop.x, pop.y);
+        ctx.fillText(pop.text, pop.x, pop.y);
+        ctx.restore();
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    loadNumber(true);
+    render();
+  </script>
+</body>
+</html>

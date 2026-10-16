@@ -136,7 +136,7 @@
         <button class="mode-btn" data-word="AZ">🔤 A-Z</button>
       </div>
 
-      <button class="flow-btn on" id="flow-btn" title="Hold finger down across strokes!">⚡ No-Lift: ON</button>
+      <button class="flow-btn on" id="flow-btn" title="Switch between continuous No-Lift and step-by-step Lift mode!">⚡ No-Lift: ON</button>
 
       <div class="heat-box">
         <span class="heat-label" id="heat-icon">🌡️ LASER</span>
@@ -171,8 +171,8 @@
     document.getElementById('name-btn').textContent = (isEmma ? '🦄 ' : '🦖 ') + primaryName;
     document.getElementById('sib-btn').textContent = (isEmma ? '🦖 ' : '🦄 ') + siblingName;
 
-    // Fluid Kindergarten Manuscript Stroke Definitions (0..100 Normalized Space)
-    const STROKES = {
+    // 1A. Continuous No-Lift Strokes (Connected corners glide in one unbroken motion!)
+    const STROKES_NOLIFT = {
       A: [ [[50,12],[20,88]], [[50,12],[80,88]], [[31,58],[69,58]] ],
       B: [ [[26,12],[26,88]], [[26,12],[64,16],[74,31],[64,47],[26,49],[68,52],[76,69],[66,85],[26,88]] ],
       C: [ [[74,24],[50,12],[26,26],[20,50],[26,74],[50,88],[74,76]] ],
@@ -201,6 +201,22 @@
       Z: [ [[22,12],[78,12],[22,88],[78,88]] ]
     };
 
+    // 1B. Step-by-Step Lift-Stroke Mode (Each segment requires lifting & starting at the next Star!)
+    const STROKES_LIFT = {
+      ...STROKES_NOLIFT,
+      B: [ [[26,12],[26,88]], [[26,12],[64,16],[74,31],[64,47],[26,49]], [[26,49],[68,52],[76,69],[66,85],[26,88]] ],
+      E: [ [[26,12],[26,88]], [[26,12],[74,12]], [[26,48],[66,48]], [[26,88],[74,88]] ],
+      K: [ [[26,12],[26,88]], [[74,12],[28,48]], [[38,40],[76,88]] ],
+      L: [ [[28,12],[28,88]], [[28,88],[74,88]] ],
+      M: [ [[18,12],[18,88]], [[18,12],[50,60]], [[82,12],[50,60]], [[82,12],[82,88]] ],
+      N: [ [[24,12],[24,88]], [[24,12],[76,88]], [[76,12],[76,88]] ],
+      R: [ [[26,12],[26,88]], [[26,12],[66,16],[76,32],[66,48],[26,50]], [[48,48],[76,88]] ],
+      V: [ [[20,12],[50,88]], [[80,12],[50,88]] ],
+      W: [ [[14,12],[32,88]], [[32,88],[50,28]], [[50,28],[68,88]], [[68,88],[86,12]] ],
+      Y: [ [[22,12],[50,48]], [[78,12],[50,48]], [[50,48],[50,88]] ],
+      Z: [ [[22,12],[78,12]], [[78,12],[22,88]], [[22,88],[78,88]] ]
+    };
+
     const PHONETIC_NAMES = {
       A: 'A', B: 'Bee', C: 'See', D: 'Dee', E: 'E', F: 'Eff', G: 'Jee',
       H: 'Aitch', I: 'Eye', J: 'Jay', K: 'Kay', L: 'El', M: 'Em', N: 'En',
@@ -220,7 +236,7 @@
     let progressIdx = 0;
     let isTracing = false;
     let pointerDown = false;
-    let strokeCompleted = false; // Guard lock so resting on Finish Flag can never multi-fire!
+    let strokeCompleted = false;
     let advanceTimer = null;
     let noLiftMode = true;
     let heat = 0;
@@ -229,6 +245,11 @@
     let sparks = [];
     let tick = 0;
     let audioCtx = null;
+
+    function getStrokesFor(ch) {
+      const table = noLiftMode ? STROKES_NOLIFT : STROKES_LIFT;
+      return table[ch] || STROKES_NOLIFT.A;
+    }
 
     // 1. Pixel Tablet Viewport Fix
     function syncViewport() {
@@ -282,6 +303,7 @@
       flowBtn.classList.toggle('on', noLiftMode);
       flowBtn.textContent = noLiftMode ? '⚡ No-Lift: ON' : '✋ Lift Stroke: ON';
       playTone(440, 660, 0.12);
+      loadLetter(false);
     };
 
     // 3. Build Dense Waypoints for Current Stroke
@@ -332,7 +354,7 @@
 
     function updateBanner() {
       const ch = currentWord[letterIdx];
-      const strokes = STROKES[ch] || STROKES.A;
+      const strokes = getStrokesFor(ch);
       document.getElementById('coach-banner').textContent =
         strokes.length > 1
           ? `Letter ${ch} • Part ${strokeIdx + 1} of ${strokes.length}`
@@ -347,11 +369,11 @@
       strokeIdx = 0;
       progressIdx = 0;
       isTracing = false;
-      pointerDown = false; // Require fresh touch when a brand-new letter appears
+      pointerDown = false;
       strokeCompleted = false;
       setHeat(0);
       const ch = currentWord[letterIdx];
-      const strokes = STROKES[ch] || STROKES.A;
+      const strokes = getStrokesFor(ch);
       densePath = buildDenseStroke(strokes[0]);
       renderLetterBar();
       updateBanner();
@@ -360,7 +382,7 @@
 
     function loadStroke(sIdx) {
       const ch = currentWord[letterIdx];
-      const strokes = STROKES[ch] || STROKES.A;
+      const strokes = getStrokesFor(ch);
       strokeIdx = sIdx;
       progressIdx = 0;
       strokeCompleted = false;
@@ -369,11 +391,11 @@
       updateBanner();
 
       if (!noLiftMode) {
+        // Strict Lift Mode: require lifting finger and tapping the new green start star
         isTracing = false;
         pointerDown = false;
       } else if (pointerDown) {
-        // Only engage immediately if the new stroke starts right where the last one ended;
-        // otherwise wait until the child slides over to the new green start star!
+        // No-Lift Mode: keep pointerDown active so sliding over the new start star locks right on!
         const d = Math.hypot(pointerPos.x - densePath[0].x, pointerPos.y - densePath[0].y);
         isTracing = d <= 58;
       }
@@ -435,7 +457,7 @@
       const pt = getCanvasPt(e);
       pointerPos = pt;
 
-      // In No-Lift mode between strokes of the SAME letter, only lock on when near the start star (progressIdx === 0)
+      // In No-Lift mode between strokes of the SAME letter, lock on when finger slides onto the new start star
       if (!isTracing && noLiftMode && progressIdx === 0) {
         const startPt = densePath[0];
         if (Math.hypot(pt.x - startPt.x, pt.y - startPt.y) <= 58) {
@@ -516,7 +538,7 @@
     }
 
     function completeCurrentStroke() {
-      if (strokeCompleted) return; // Prevents multi-triggering while finger rests on flag!
+      if (strokeCompleted) return;
       strokeCompleted = true;
       isTracing = false;
       isOffTrack = false;
@@ -524,11 +546,10 @@
       playTone(523.25, 1046.5, 0.22, 'triangle', 0.28);
 
       const ch = currentWord[letterIdx];
-      const strokes = STROKES[ch] || STROKES.A;
+      const strokes = getStrokesFor(ch);
       if (strokeIdx + 1 < strokes.length) {
         loadStroke(strokeIdx + 1);
       } else {
-        // Whole letter finished! Release pointerDown so resting on the flag never triggers the next letter
         pointerDown = false;
         if (letterIdx + 1 < currentWord.length) {
           advanceTimer = setTimeout(() => {
@@ -591,7 +612,7 @@
       ctx.setLineDash([]);
 
       const ch = currentWord[letterIdx];
-      const strokes = STROKES[ch] || STROKES.A;
+      const strokes = getStrokesFor(ch);
 
       strokes.forEach((s, idx) => {
         drawStrokePolyline(s, 58, 'rgba(30, 41, 59, 0.85)');

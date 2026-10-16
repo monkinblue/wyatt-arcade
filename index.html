@@ -28,55 +28,55 @@
     }
     header {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 16px 32px; flex-shrink: 0;
+      padding: 14px 28px; flex-shrink: 0;
     }
-    .greeting-box { display: flex; align-items: center; gap: 16px; }
+    .greeting-box { display: flex; align-items: center; gap: 14px; }
     .avatar-main {
-      width: 64px; height: 64px; border-radius: 50%; background: #4EA8DE;
+      width: 60px; height: 60px; border-radius: 50%; background: #4EA8DE;
       border: 4px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-      display: flex; align-items: center; justify-content: center; font-size: 36px;
+      display: flex; align-items: center; justify-content: center; font-size: 34px;
     }
-    .greeting-text h1 { font-size: 28px; color: #1D3557; }
-    .greeting-text p { font-size: 15px; color: #457B9D; font-weight: 500; }
+    .greeting-text h1 { font-size: 26px; color: #1D3557; }
+    .greeting-text p { font-size: 14px; color: #457B9D; font-weight: 500; }
 
     .profile-toggle {
-      display: flex; background: #fff; padding: 6px; border-radius: 40px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08); gap: 8px;
+      display: flex; background: #fff; padding: 5px; border-radius: 40px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08); gap: 6px;
     }
     .prof-btn {
-      border: none; background: transparent; padding: 10px 18px; border-radius: 30px;
-      font-family: inherit; font-size: 17px; font-weight: 700; cursor: pointer;
-      display: flex; align-items: center; gap: 8px; color: #555; transition: 0.2s;
+      border: none; background: transparent; padding: 9px 16px; border-radius: 30px;
+      font-family: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; color: #555; transition: 0.2s;
     }
     .prof-btn.active { background: #1D3557; color: #fff; }
 
     nav {
-      display: flex; justify-content: center; gap: 18px; margin-bottom: 16px; flex-shrink: 0;
+      display: flex; justify-content: center; gap: 16px; margin-bottom: 12px; flex-shrink: 0;
     }
     .nav-tab {
       background: rgba(255,255,255,0.85); border: 3px solid #fff;
-      padding: 12px 34px; border-radius: 40px; font-size: 22px; font-weight: 700;
-      color: #457B9D; cursor: pointer; display: flex; align-items: center; gap: 10px;
+      padding: 10px 32px; border-radius: 40px; font-size: 21px; font-weight: 700;
+      color: #457B9D; cursor: pointer; display: flex; align-items: center; gap: 8px;
       box-shadow: 0 6px 14px rgba(0,0,0,0.06); transition: all 0.2s;
     }
     .nav-tab.active {
-      background: #FF9F1C; color: #fff; transform: scale(1.06);
+      background: #FF9F1C; color: #fff; transform: scale(1.05);
       box-shadow: 0 8px 20px rgba(255,159,28,0.35);
     }
 
     main {
-      flex: 1; min-height: 0; padding: 6px 32px 32px;
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
-      align-items: stretch; max-width: 1320px; width: 100%; margin: 0 auto;
+      flex: 1; min-height: 0; padding: 6px 28px 28px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+      align-items: stretch; max-width: 1340px; width: 100%; margin: 0 auto;
     }
     .card {
-      background: #fff; border-radius: 26px; padding: 16px;
+      background: #fff; border-radius: 24px; padding: 14px;
       display: flex; flex-direction: column; justify-content: space-between;
-      box-shadow: 0 10px 24px rgba(0,0,0,0.08); border: 5px solid #fff;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08); border: 4px solid #fff;
       cursor: pointer; transition: transform 0.15s; position: relative; overflow: hidden;
       min-height: 0;
     }
-    .card:hover, .card:active { transform: translateY(-5px) scale(1.02); }
+    .card:hover, .card:active { transform: translateY(-4px) scale(1.02); }
 
     .card.locked {
       filter: grayscale(100%); opacity: 0.52; cursor: not-allowed; box-shadow: none;
@@ -84,34 +84,34 @@
     .card.locked:hover, .card.locked:active { transform: none; }
 
     .card-art {
-      flex: 1; min-height: 0; border-radius: 18px; display: flex; align-items: center;
-      justify-content: center; font-size: 80px; margin-bottom: 12px;
-      box-shadow: inset 0 -8px 0 rgba(0,0,0,0.1);
+      flex: 1; min-height: 0; border-radius: 16px; display: flex; align-items: center;
+      justify-content: center; font-size: clamp(54px, 8vh, 80px); margin-bottom: 10px;
+      box-shadow: inset 0 -6px 0 rgba(0,0,0,0.1);
     }
     .badge {
-      position: absolute; top: 24px; right: 22px; background: rgba(255,255,255,0.92);
-      padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 700; color: #1D3557;
+      position: absolute; top: 22px; right: 20px; background: rgba(255,255,255,0.92);
+      padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; color: #1D3557;
     }
     .status-pill {
-      position: absolute; top: 24px; left: 22px; background: #06D6A0; color: #fff;
-      padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 700;
+      position: absolute; top: 22px; left: 20px; background: #06D6A0; color: #fff;
+      padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;
       box-shadow: 0 4px 10px rgba(6,214,160,0.4);
     }
     .status-pill.soon { background: #6C757D; box-shadow: none; }
-    .card-title { font-size: 20px; font-weight: 700; color: #1D3557; margin-bottom: 3px; }
-    .card-sub { font-size: 14px; color: #6C757D; }
+    .card-title { font-size: 19px; font-weight: 700; color: #1D3557; margin-bottom: 2px; }
+    .card-sub { font-size: 13px; color: #6C757D; }
 
     .parent-lock {
-      position: fixed; bottom: 12px; right: 20px; background: rgba(255,255,255,0.85);
-      padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #1D3557;
+      position: fixed; bottom: 10px; right: 18px; background: rgba(255,255,255,0.85);
+      padding: 5px 12px; border-radius: 20px; font-size: 12px; color: #1D3557;
       font-weight: 700; box-shadow: 0 4px 10px rgba(0,0,0,0.08); z-index: 10;
     }
     .header-actions { display: flex; align-items: center; gap: 12px; }
     .install-badge {
       display: inline-flex; align-items: center; justify-content: center;
       border: 3px solid #1A103C; background: #FFD166; color: #1A103C;
-      font-family: inherit; font-size: 17px; font-weight: 700;
-      border-radius: 999px; padding: 8px 16px; min-height: 44px;
+      font-family: inherit; font-size: 16px; font-weight: 700;
+      border-radius: 999px; padding: 8px 14px; min-height: 42px;
       cursor: pointer; box-shadow: 0 4px 0 #C4882E;
     }
     .install-badge[hidden] { display: none !important; }
@@ -147,7 +147,6 @@
   </div>
 
   <script>
-    // Pixel Tablet WebAPK Viewport Stabilizer (Same exact fix as Balloon Pop!)
     function syncViewport() {
       const vv = window.visualViewport;
       const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
@@ -160,16 +159,17 @@
     window.addEventListener('resize', syncViewport);
     window.addEventListener('orientationchange', () => setTimeout(syncViewport, 120));
     window.addEventListener('pageshow', syncViewport);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+    window.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
     if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
     if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
     [0, 60, 180, 400, 800].forEach(ms => setTimeout(syncViewport, ms));
 
     const items = [
       { type: 'play', icon: '🎈', bg: '#FF6B6B', badge: 'Letters & Words', title: 'Balloon Letter Pop', sub: 'Spot & pop the letters to spell words!', url: 'balloon-pop.html' },
-      { type: 'play', icon: '✏️', bg: '#06D6A0', badge: 'Handwriting & Tracing', title: 'Laser Letter Racer', sub: 'Trace letters from the top—don\'t overheat!', url: 'letter-trace.html' },
-      { type: 'play', icon: '🚀', bg: '#FFD166', badge: 'Numbers & Counting', title: 'Rocket Count 1-20', sub: 'Count stars & blast off into space!', url: 'rocket-count.html' },
-      { type: 'play', icon: '🦁', bg: '#F15BB5', badge: 'Memory & Logic', title: 'Animal Match Safari', sub: 'Flip cards to find safari pairs!', url: 'animal-match.html' },
+      { type: 'play', icon: '✏️', bg: '#06D6A0', badge: 'Letter Tracing', title: 'Laser Letter Racer', sub: 'Trace A-Z from the top—don\'t overheat!', url: 'letter-trace.html' },
+      { type: 'play', icon: '🎢', bg: '#F472B6', badge: 'Number Tracing', title: 'Neon Number Coaster', sub: 'Trace 0-10 for gems & prize pinatas!', url: 'number-trace.html' },
+      { type: 'play', icon: '🚀', bg: '#FFD166', badge: 'Counting 1-20', title: 'Rocket Count 1-20', sub: 'Count stars & blast off into space!', url: 'rocket-count.html' },
+      { type: 'play', icon: '🦁', bg: '#A855F7', badge: 'Memory & Logic', title: 'Animal Match Safari', sub: 'Flip crates to find safari pairs!', url: 'animal-match.html' },
       { type: 'read', icon: '🌱', bg: '#4ECDC4', badge: 'Living eBook', title: 'Wyatt, Emma & the Beanstalk', sub: 'Pack gear & climb to the castle!', url: 'beanstalk.html' },
       { type: 'read', icon: '🏊‍♀️', bg: '#4EA8DE', badge: 'Living eBook', title: 'Splash in the Pool!', sub: 'Tap words to hear them read' },
       { type: 'read', icon: '⛰️', bg: '#00BBF9', badge: 'Living eBook', title: 'The Mountain Train', sub: 'Bedtime story & sound effects' },
@@ -184,7 +184,13 @@
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
       const filtered = items.filter(i => i.type === currentTab);
-      grid.style.gridTemplateColumns = `repeat(${Math.max(3, filtered.length)}, 1fr)`;
+      if (filtered.length <= 3) {
+        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        grid.style.gridTemplateRows = '1fr';
+      } else {
+        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        grid.style.gridTemplateRows = 'repeat(2, 1fr)';
+      }
       filtered.forEach(item => {
         const isReady = Boolean(item.url);
         const card = document.createElement('div');
