@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Rocket Count 1-20!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --app-w: 100vw; --app-h: 100dvh; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
+      font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+      background: radial-gradient(circle at 50% 25%, #1E293B 0%, #0F172A 60%, #020617 100%);
+      color: #fff; touch-action: manipulation;
+    }
+    #game-stage {
+      position: fixed; inset: 0; width: var(--app-w); height: var(--app-h); overflow: hidden;
+    }
+
+    /* Screen Rumble for Countdown & Wrong Tap */
+    body.rumble { animation: rumbleAnim 0.35s infinite; }
+    body.wrong-flash { animation: shake 0.4s both; }
+    body.wrong-flash::after {
+      content: ''; position: fixed; inset: 0; background: rgba(239, 71, 111, 0.45);
+      pointer-events: none; z-index: 55;
+    }
+    @keyframes rumbleAnim {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(-4px, 3px); }
+      50% { transform: translate(4px, -3px); }
+      75% { transform: translate(-3px, -2px); }
+    }
+    @keyframes shake {
+      20%, 80% { transform: translateX(-12px); }
+      40%, 60% { transform: translateX(12px); }
+    }
+
+    /* Twinkling Background Stars */
+    .bg-star {
+      position: absolute; border-radius: 50%; background: #fff; pointer-events: none;
+      animation: twinkle 2.5s infinite alternate ease-in-out;
+    }
+    @keyframes twinkle { from { opacity: 0.25; transform: scale(0.8); } to { opacity: 1; transform: scale(1.2); } }
+
+    /* Top HUD */
+    header {
+      position: absolute; top: 14px; left: 20px; right: 20px; z-index: 30;
+      display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none;
+    }
+    .back-btn, .pill-box {
+      pointer-events: auto; background: rgba(30, 41, 59, 0.92); border: 3px solid #38BDF8;
+      padding: 10px 20px; border-radius: 40px; font-size: 20px; font-weight: 700;
+      color: #F8FAFC; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+      display: flex; align-items: center; gap: 8px; cursor: pointer; text-decoration: none;
+    }
+    .hud-right { display: flex; gap: 10px; pointer-events: auto; }
+    .shield-icon { font-size: 22px; transition: 0.25s; }
+    .shield-icon.lost { filter: grayscale(1) opacity(0.25); transform: scale(0.75); }
+
+    /* Mission Banner at Top Center */
+    .mission-card {
+      pointer-events: auto; background: rgba(15, 23, 42, 0.94); border: 4px solid #FBBF24;
+      border-radius: 30px; padding: 8px 28px; display: flex; align-items: center; gap: 16px;
+      box-shadow: 0 10px 30px rgba(251, 191, 36, 0.25); cursor: pointer;
+    }
+    .mission-planet { font-size: 52px; line-height: 1; }
+    .mission-label { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #38BDF8; font-weight: 700; }
+    .mission-goal { font-size: 30px; font-weight: 700; color: #FDE047; }
+
+    /* Center Launchpad & Rocket */
+    .launchpad {
+      position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%);
+      width: 220px; height: 26px; background: #475569; border-radius: 14px;
+      border: 3px solid #94A3B8; z-index: 12; box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+    }
+    .rocket-wrap {
+      position: absolute; bottom: 112px; left: 50%; transform: translateX(-50%);
+      width: 140px; height: 220px; z-index: 15; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; transition: transform 0.2s; cursor: pointer;
+    }
+    .rocket-wrap.launching {
+      transition: transform 2.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transform: translate(-50%, -120vh) scale(0.9);
+    }
+    .rocket-body {
+      width: 96px; height: 165px;
+      background: linear-gradient(90deg, #F8FAFC 0%, #E2E8F0 65%, #CBD5E1 100%);
+      border-radius: 50% 50% 22% 22% / 65% 65% 20% 20%;
+      border: 4px solid #EF4444; position: relative;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding-top: 26px; box-shadow: inset -10px 0 0 rgba(0,0,0,0.08), 0 12px 28px rgba(0,0,0,0.45);
+    }
+    .rocket-nose {
+      position: absolute; top: -4px; width: 72px; height: 42px;
+      background: #EF4444; border-radius: 50% 50% 0 0;
+    }
+    .rocket-window {
+      width: 56px; height: 56px; border-radius: 50%; background: #0EA5E9;
+      border: 5px solid #FBBF24; z-index: 2; display: flex; align-items: center;
+      justify-content: center; font-size: 34px; box-shadow: inset 0 4px 8px rgba(0,0,0,0.3);
+    }
+    .rocket-count-badge {
+      margin-top: 8px; background: #0F172A; color: #FDE047; border: 3px solid #38BDF8;
+      border-radius: 16px; padding: 2px 14px; font-size: 28px; font-weight: 700; z-index: 2;
+    }
+    .fin-left, .fin-right {
+      position: absolute; bottom: 16px; width: 34px; height: 54px; background: #EF4444; z-index: -1;
+    }
+    .fin-left { left: 2px; border-radius: 100% 0 0 20%; transform: skewY(-15deg); }
+    .fin-right { right: 2px; border-radius: 0 100% 20% 0; transform: skewY(15deg); }
+    .rocket-flame {
+      width: 54px; height: 70px; margin-top: -6px;
+      background: radial-gradient(circle at 50% 0%, #FFF 10%, #FDE047 45%, #F97316 75%, transparent 100%);
+      border-radius: 50% 50% 50% 50%; opacity: 0; transform: scaleY(0.3);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .rocket-flame.active {
+      opacity: 1; transform: scaleY(1.35);
+      animation: flameFlicker 0.1s infinite alternate;
+    }
+    @keyframes flameFlicker { from { transform: scaleY(1.1) scaleX(0.92); } to { transform: scaleY(1.45) scaleX(1.08); } }
+
+    /* Bottom Numbered Fuel Gauge Slots */
+    .fuel-bar {
+      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 25; background: rgba(15, 23, 42, 0.94); padding: 10px 20px;
+      border-radius: 36px; border: 4px solid #38BDF8;
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+      max-width: 94vw; box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+    }
+    .fuel-slot {
+      width: 48px; height: 52px; border-radius: 14px;
+      background: rgba(56, 189, 248, 0.15); border: 3px dashed #38BDF8;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700; color: rgba(255,255,255,0.4);
+      cursor: pointer; transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .fuel-slot.filled {
+      background: linear-gradient(135deg, #FBBF24, #F59E0B);
+      border: 3px solid #FFF; color: #0F172A; transform: scale(1.08);
+      box-shadow: 0 0 16px rgba(251, 191, 36, 0.7);
+    }
+    .fuel-slot.speaking { transform: scale(1.25) translateY(-5px); border-color: #06D6A0; }
+
+    /* Floating Collectible Fuel Stars & Space Junk */
+    .space-item {
+      position: absolute; width: 92px; height: 92px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 56px; cursor: pointer; z-index: 18;
+      filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+      transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), left 0.4s ease-in, top 0.4s ease-in;
+    }
+    .space-item.star-orb {
+      background: radial-gradient(circle, rgba(253,224,71,0.35) 0%, rgba(251,191,36,0) 70%);
+    }
+
+    /* Phase 2 & 3 Interactive Control Overlays */
+    .control-panel {
+      display: none; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -55%); z-index: 40;
+      background: rgba(15, 23, 42, 0.95); border: 5px solid #FBBF24;
+      border-radius: 36px; padding: 26px 40px; text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.7); flex-direction: column; align-items: center; gap: 18px;
+    }
+    .panel-title { font-size: 30px; font-weight: 700; color: #FDE047; }
+    .num-choices { display: flex; gap: 22px; }
+    .num-btn {
+      width: 105px; height: 105px; border-radius: 28px;
+      background: linear-gradient(180deg, #38BDF8, #0284C7);
+      border: 5px solid #FFF; color: #FFF; font-size: 52px; font-weight: 700;
+      font-family: inherit; cursor: pointer; box-shadow: 0 10px 24px rgba(2,132,199,0.5);
+      transition: transform 0.15s;
+    }
+    .num-btn:active { transform: scale(0.92); }
+    .blastoff-btn {
+      background: linear-gradient(180deg, #EF4444, #DC2626);
+      border: 6px solid #FDE047; color: #FFF; border-radius: 999px;
+      padding: 20px 48px; font-size: 40px; font-weight: 700; font-family: inherit;
+      cursor: pointer; box-shadow: 0 0 35px rgba(239, 68, 68, 0.8);
+      animation: pulseBtn 0.8s infinite alternate;
+    }
+    @keyframes pulseBtn { from { transform: scale(1); } to { transform: scale(1.08); } }
+
+    /* Modals */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 60;
+      background: rgba(2, 6, 23, 0.8); backdrop-filter: blur(5px);
+      align-items: center; justify-content: center;
+    }
+    .modal-card {
+      background: #0F172A; border: 5px solid #38BDF8; border-radius: 40px;
+      padding: 36px 56px; text-align: center; display: flex; flex-direction: column;
+      align-items: center; gap: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+    }
+    .modal-emoji { font-size: 96px; }
+    .modal-title { font-size: 48px; font-weight: 700; color: #06D6A0; }
+    .action-btn {
+      background: #06D6A0; color: #0F172A; border: none; border-radius: 999px;
+      padding: 14px 40px; font-size: 28px; font-weight: 700; font-family: inherit; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-stage">
+    <div id="starfield"></div>
+
+    <header>
+      <a href="index.html" class="back-btn">🏠 Back</a>
+
+      <div class="mission-card" id="mission-card" title="Tap to hear mission!">
+        <div class="mission-planet" id="mission-planet">🌕</div>
+        <div>
+          <div class="mission-label" id="mission-label">Tap Stars to Fuel Up!</div>
+          <div class="mission-goal" id="mission-goal">Load 3 Stars!</div>
+        </div>
+      </div>
+
+      <div class="hud-right">
+        <div class="pill-box" id="shields-pill">
+          <span class="shield-icon">🛡️</span>
+          <span class="shield-icon">🛡️</span>
+          <span class="shield-icon">🛡️</span>
+        </div>
+        <div class="pill-box">🚀 Mission <span id="level-num">1</span></div>
+      </div>
+    </header>
+
+    <!-- Rocket & Launchpad -->
+    <div class="rocket-wrap" id="rocket-wrap" title="Tap Rocket to Count!">
+      <div class="rocket-body">
+        <div class="rocket-nose"></div>
+        <div class="rocket-window" id="pilot-emoji">🐉</div>
+        <div class="rocket-count-badge" id="rocket-badge">0</div>
+        <div class="fin-left"></div>
+        <div class="fin-right"></div>
+      </div>
+      <div class="rocket-flame" id="rocket-flame"></div>
+    </div>
+    <div class="launchpad"></div>
+
+    <!-- Phase 2: Number Identification Pad -->
+    <div class="control-panel" id="quiz-panel">
+      <div class="panel-title" id="quiz-title">Tank Full! Tap the Number 3!</div>
+      <div class="num-choices" id="num-choices"></div>
+    </div>
+
+    <!-- Phase 3: Big Red Blastoff Button -->
+    <div class="control-panel" id="launch-panel">
+      <div class="panel-title" id="countdown-text">Ready for Takeoff!</div>
+      <button class="blastoff-btn" id="blastoff-btn">🚀 BLAST OFF!</button>
+    </div>
+
+    <!-- Bottom Numbered Fuel Gauge -->
+    <div class="fuel-bar" id="fuel-bar"></div>
+  </div>
+
+  <!-- Win Overlay -->
+  <div class="modal-overlay" id="win-overlay">
+    <div class="modal-card">
+      <div class="modal-emoji" id="win-emoji">🌕</div>
+      <div class="modal-title" id="win-title">3 STARS!</div>
+      <div style="font-size:24px;color:#FDE047;" id="win-sub">Welcome to the Moon!</div>
+    </div>
+  </div>
+
+  <!-- 3-Strike Reset Overlay -->
+  <div class="modal-overlay" id="gameover-overlay">
+    <div class="modal-card">
+      <div class="modal-emoji">☄️🛡️</div>
+      <div class="modal-title" style="color:#EF4444;">Shields Down!</div>
+      <div style="font-size:22px;color:#CBD5E1;">Watch out for space rocks and tap the right number!</div>
+      <button class="action-btn" id="retry-btn">🔄 Try Mission Again!</button>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    // Captain Sparky Dragon for Wyatt, Emma's White Doggie for Emma!
+    document.getElementById('pilot-emoji').textContent = isEmma ? '🐶' : '🐉';
+
+    const missions = isEmma
+      ? [
+          { target: 3,  planet: '🌕', name: 'The Moon' },
+          { target: 4,  planet: '🍭', name: 'Candy Planet' },
+          { target: 5,  planet: '🪐', name: 'Rainbow Rings' },
+          { target: 6,  planet: '🦖', name: 'Dino World' },
+          { target: 7,  planet: '🦄', name: 'Unicorn Star' },
+          { target: 8,  planet: '🍦', name: 'Ice Cream Moon' },
+          { target: 10, planet: '👑', name: 'Cloud Castle' },
+          { target: 12, planet: '🌟', name: 'Supernova' }
+        ]
+      : [
+          { target: 4,  planet: '🌕', name: 'The Moon' },
+          { target: 6,  planet: '🪐', name: 'Saturn Rings' },
+          { target: 8,  planet: '🦖', name: 'Dino Planet' },
+          { target: 10, planet: '🐉', name: 'Dragon Nebula' },
+          { target: 12, planet: '🌋', name: 'Lava World' },
+          { target: 15, planet: '💎', name: 'Crystal Star' },
+          { target: 18, planet: '🌌', name: 'Robot Galaxy' },
+          { target: 20, planet: '👑', name: 'Golden Sun' }
+        ];
+
+    let levelIdx = 0;
+    let targetCount = 3;
+    let currentCount = 0;
+    let strikes = 0;
+    let phase = 'fueling'; // 'fueling' | 'quiz' | 'launch' | 'busy'
+    let items = [];
+    let audioCtx = null;
+    let stageW = window.innerWidth;
+    let stageH = window.innerHeight;
+
+    // 1. Pixel Tablet Viewport Stabilizer
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        stageW = w;
+        stageH = h;
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
+
+    // Create twinkling background stars
+    const starfield = document.getElementById('starfield');
+    for (let i = 0; i < 40; i++) {
+      const s = document.createElement('div');
+      s.className = 'bg-star';
+      const size = 2 + Math.random() * 4;
+      s.style.width = `${size}px`;
+      s.style.height = `${size}px`;
+      s.style.left = `${Math.random() * 100}%`;
+      s.style.top = `${Math.random() * 80}%`;
+      s.style.animationDelay = `${Math.random() * 2.5}s`;
+      starfield.appendChild(s);
+    }
+
+    // 2. Audio & Voice Synthesis
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(String(text));
+        u.rate = 0.92;
+        u.pitch = 1.1;
+        window.speechSynthesis.speak(u);
+      }
+    }
+
+    function playTone(f1, f2, dur = 0.18, type = 'triangle', vol = 0.28) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f1, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + dur);
+    }
+
+    function playRumbleSound() {
+      initAudio();
+      const now = audioCtx.currentTime;
+      [65, 82, 98, 110].forEach((f, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(f, now);
+        osc.frequency.exponentialRampToValueAtTime(f * 2.2, now + 1.8);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.9);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 1.9);
+      });
+    }
+
+    function renderShields() {
+      document.querySelectorAll('.shield-icon').forEach((el, idx) => {
+        el.classList.toggle('lost', idx >= (3 - strikes));
+      });
+    }
+
+    function clearSpaceItems() {
+      items.forEach(it => it.el.remove());
+      items = [];
+    }
+
+    function renderFuelBar() {
+      const bar = document.getElementById('fuel-bar');
+      bar.innerHTML = '';
+      for (let i = 1; i <= targetCount; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'fuel-slot' + (i <= currentCount ? ' filled' : '');
+        slot.textContent = i;
+        slot.onpointerdown = (e) => {
+          e.stopPropagation();
+          slot.classList.add('speaking');
+          setTimeout(() => slot.classList.remove('speaking'), 400);
+          playTone(440 + i * 25, 580 + i * 25, 0.14, 'sine', 0.2);
+          speak(i);
+        };
+        bar.appendChild(slot);
+      }
+      document.getElementById('rocket-badge').textContent = currentCount;
+    }
+
+    function loadMission(idx) {
+      syncViewport();
+      clearSpaceItems();
+      levelIdx = idx % missions.length;
+      const m = missions[levelIdx];
+      targetCount = m.target;
+      currentCount = 0;
+      strikes = 0;
+      phase = 'fueling';
+      renderShields();
+
+      document.getElementById('level-num').textContent = levelIdx + 1;
+      document.getElementById('mission-planet').textContent = m.planet;
+      document.getElementById('mission-label').textContent = `Mission to ${m.name}!`;
+      document.getElementById('mission-goal').textContent = `Load ${targetCount} Stars!`;
+      document.getElementById('quiz-panel').style.display = 'none';
+      document.getElementById('launch-panel').style.display = 'none';
+
+      const rw = document.getElementById('rocket-wrap');
+      rw.classList.remove('launching');
+      document.getElementById('rocket-flame').classList.remove('active');
+
+      renderFuelBar();
+      speak(`Load ${targetCount} stars into the rocket!`);
+    }
+
+    function addStrike() {
+      strikes++;
+      renderShields();
+      playTone(130, 75, 0.4, 'sawtooth', 0.3);
+      document.body.classList.remove('wrong-flash');
+      void document.body.offsetWidth;
+      document.body.classList.add('wrong-flash');
+      setTimeout(() => document.body.classList.remove('wrong-flash'), 420);
+
+      if (strikes >= 3) {
+        phase = 'busy';
+        clearSpaceItems();
+        setTimeout(() => {
+          document.getElementById('gameover-overlay').style.display = 'flex';
+          speak('Oh no, shields down! Let us try again!');
+        }, 450);
+      }
+    }
+
+    function spawnSpaceItem() {
+      if (phase !== 'fueling') return;
+      const stage = document.getElementById('game-stage');
+      const el = document.createElement('div');
+
+      // 78% Fuel Star, 22% Space Asteroid Decoy (punishes blind tapping!)
+      const isStar = Math.random() < 0.78;
+      el.className = 'space-item' + (isStar ? ' star-orb' : '');
+      el.textContent = isStar ? '⭐' : (Math.random() < 0.5 ? '🪨' : '🛸');
+
+      const fromLeft = Math.random() < 0.5;
+      let x = fromLeft ? -90 : stageW + 90;
+      const y = 100 + Math.random() * Math.max(140, stageH - 310);
+      const vx = (fromLeft ? 1 : -1) * (isEmma ? 1.5 + Math.random() : 2.0 + Math.random() * 1.4);
+
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+
+      const itemObj = { el, x, y, vx, angle: Math.random() * 6, collected: false };
+
+      el.onpointerdown = (e) => {
+        e.stopPropagation();
+        if (itemObj.collected || phase !== 'fueling') return;
+        itemObj.collected = true;
+
+        if (isStar) {
+          currentCount++;
+          renderFuelBar();
+          // Pitch rises with each star counted!
+          const pitch = 380 + currentCount * 28;
+          playTone(pitch, pitch * 1.35, 0.22, 'triangle', 0.32);
+          speak(currentCount);
+
+          // Zoom the tapped star straight into the rocket fuel tank!
+          el.style.left = `${stageW / 2 - 46}px`;
+          el.style.top = `${stageH - 220}px`;
+          el.style.transform = 'scale(0.2)';
+          setTimeout(() => el.remove(), 380);
+
+          if (currentCount >= targetCount) {
+            phase = 'quiz';
+            clearSpaceItems();
+            setTimeout(showNumberQuiz, 650);
+          }
+        } else {
+          // Tapped a space rock!
+          el.textContent = '💥';
+          setTimeout(() => el.remove(), 300);
+          addStrike();
+        }
+      };
+
+      stage.appendChild(el);
+      items.push(itemObj);
+    }
+
+    function showNumberQuiz() {
+      const panel = document.getElementById('quiz-panel');
+      document.getElementById('quiz-title').textContent = `Tank Full! Tap the Number ${targetCount}!`;
+      const choicesEl = document.getElementById('num-choices');
+      choicesEl.innerHTML = '';
+
+      // Build 3 distinct number choices including targetCount
+      const opts = new Set([targetCount]);
+      while (opts.size < 3) {
+        const offset = (Math.floor(Math.random() * 5) + 1) * (Math.random() < 0.5 ? 1 : -1);
+        const cand = Math.max(1, Math.min(20, targetCount + offset));
+        opts.add(cand);
+      }
+      Array.from(opts).sort((a, b) => a - b).forEach(num => {
+        const btn = document.createElement('button');
+        btn.className = 'num-btn';
+        btn.textContent = num;
+        btn.onpointerdown = (e) => {
+          e.stopPropagation();
+          if (num === targetCount) {
+            playTone(523.25, 1046.5, 0.3, 'triangle', 0.35);
+            panel.style.display = 'none';
+            showBlastoffPanel();
+          } else {
+            speak(`That is ${num}. Find ${targetCount}!`);
+            addStrike();
+          }
+        };
+        choicesEl.appendChild(btn);
+      });
+
+      panel.style.display = 'flex';
+      speak(`Tank full! Tap the number ${targetCount}!`);
+    }
+
+    function showBlastoffPanel() {
+      phase = 'launch';
+      const panel = document.getElementById('launch-panel');
+      const title = document.getElementById('countdown-text');
+      const btn = document.getElementById('blastoff-btn');
+      title.textContent = `${targetCount} Stars Locked In!`;
+      btn.style.display = 'inline-block';
+      panel.style.display = 'flex';
+      speak(`${targetCount}! Tap Blast Off!`);
+    }
+
+    document.getElementById('blastoff-btn').onpointerdown = (e) => {
+      e.stopPropagation();
+      if (phase !== 'launch') return;
+      phase = 'busy';
+      document.getElementById('blastoff-btn').style.display = 'none';
+      const title = document.getElementById('countdown-text');
+      const flame = document.getElementById('rocket-flame');
+      flame.classList.add('active');
+      document.body.classList.add('rumble');
+
+      let count = 3;
+      title.textContent = `T-Minus ${count}...`;
+      playTone(440, 440, 0.2, 'square', 0.2);
+      speak('3, 2, 1, Blast off!');
+
+      const timer = setInterval(() => {
+        count--;
+        if (count > 0) {
+          title.textContent = `T-Minus ${count}...`;
+          playTone(440 + (3 - count) * 110, 440 + (3 - count) * 110, 0.2, 'square', 0.25);
+        } else {
+          clearInterval(timer);
+          document.getElementById('launch-panel').style.display = 'none';
+          document.body.classList.remove('rumble');
+          playRumbleSound();
+          document.getElementById('rocket-wrap').classList.add('launching');
+          setTimeout(handleMissionWin, 1900);
+        }
+      }, 750);
+    };
+
+    function handleMissionWin() {
+      const m = missions[levelIdx];
+      document.getElementById('win-emoji').textContent = m.planet;
+      document.getElementById('win-title').textContent = `${targetCount} STARS!`;
+      document.getElementById('win-sub').textContent = `Welcome to ${m.name}!`;
+      document.getElementById('win-overlay').style.display = 'flex';
+
+      setTimeout(() => {
+        document.getElementById('win-overlay').style.display = 'none';
+        loadMission(levelIdx + 1);
+      }, 2800);
+    }
+
+    document.getElementById('retry-btn').onclick = () => {
+      document.getElementById('gameover-overlay').style.display = 'none';
+      loadMission(levelIdx);
+    };
+    document.getElementById('mission-card').onclick = () => speak(`Load ${targetCount} stars!`);
+    document.getElementById('rocket-wrap').onclick = () => speak(`${currentCount} of ${targetCount} stars!`);
+
+    function animate() {
+      if (phase === 'fueling') {
+        for (let i = items.length - 1; i >= 0; i--) {
+          const it = items[i];
+          if (it.collected) { items.splice(i, 1); continue; }
+          it.x += it.vx;
+          it.angle += 0.04;
+          it.el.style.left = `${it.x}px`;
+          it.el.style.top = `${it.y + Math.sin(it.angle) * 14}px`;
+          if (it.x < -140 || it.x > stageW + 140) {
+            it.el.remove();
+            items.splice(i, 1);
+          }
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    loadMission(0);
+    animate();
+    setInterval(spawnSpaceItem, isEmma ? 1100 : 900);
+    spawnSpaceItem();
+  </script>
+</body>
+</html>

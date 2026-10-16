@@ -14,10 +14,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
-    body {
+    html, body {
       font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
       background: linear-gradient(180deg, #E2F1FF 0%, #F5FAFF 55%, #D8F3DC 100%);
-      height: 100vh; width: 100vw; overflow: hidden;
+      height: 100dvh; width: 100%; position: fixed; inset: 0; overflow: hidden;
       display: flex; flex-direction: column;
     }
     header {
@@ -133,8 +133,8 @@
     <div class="header-actions">
       <button type="button" id="install-app" class="install-badge" hidden>📲 Install App</button>
       <div class="profile-toggle">
-      <button class="prof-btn active" id="btn-wyatt" onclick="setProfile('wyatt')">🦖 Wyatt (4)</button>
-      <button class="prof-btn" id="btn-emma" onclick="setProfile('emma')">🦄 Emma (3)</button>
+        <button class="prof-btn active" id="btn-wyatt" onclick="setProfile('wyatt')">🦖 Wyatt (4)</button>
+        <button class="prof-btn" id="btn-emma" onclick="setProfile('emma')">🦄 Emma (3)</button>
       </div>
     </div>
   </header>
@@ -152,7 +152,7 @@
   <script>
     const items = [
       { type: 'play', icon: '🎈', bg: '#FF6B6B', badge: 'Letters & Words', title: 'Balloon Letter Pop', sub: 'Spot & pop the letters to spell words!', url: 'balloon-pop.html' },
-      { type: 'play', icon: '🚀', bg: '#FFD166', badge: 'Numbers & Counting', title: 'Rocket Count 1-20', sub: 'Count stars to blast off' },
+      { type: 'play', icon: '🚀', bg: '#FFD166', badge: 'Numbers & Counting', title: 'Rocket Count 1-20', sub: 'Count stars & blast off into space!', url: 'rocket-count.html' },
       { type: 'play', icon: '🦁', bg: '#F15BB5', badge: 'Memory & Logic', title: 'Animal Match Safari', sub: 'Flip cards to find pairs' },
       { type: 'read', icon: '🌱', bg: '#4ECDC4', badge: 'Living eBook', title: 'Wyatt, Emma & the Beanstalk', sub: 'Pack gear & climb to the castle!', url: 'beanstalk.html' },
       { type: 'read', icon: '🏊‍♀️', bg: '#4EA8DE', badge: 'Living eBook', title: 'Splash in the Pool!', sub: 'Tap words to hear them read' },
