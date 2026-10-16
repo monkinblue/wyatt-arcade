@@ -29,30 +29,33 @@
       75% { transform: translate(4px, -3px); }
     }
 
-    /* Top Header: Back, Mode Picker, Overheat Thermometer */
+    /* Top Header: Back, Word Picker, Flow Toggle & Laser Temp */
     header {
       display: flex; align-items: center; justify-content: space-between;
       background: rgba(15, 23, 42, 0.92); border: 3px solid #38BDF8;
-      border-radius: 26px; padding: 8px 16px; gap: 12px; z-index: 20;
+      border-radius: 26px; padding: 8px 16px; gap: 10px; z-index: 20;
       box-shadow: 0 8px 24px rgba(0,0,0,0.45);
     }
-    .nav-btn, .mode-btn {
-      font-family: inherit; font-weight: 700; font-size: 18px;
+    .nav-btn, .mode-btn, .flow-btn {
+      font-family: inherit; font-weight: 700; font-size: 17px;
       background: #1E293B; color: #F8FAFC; border: 3px solid #475569;
-      padding: 8px 16px; border-radius: 20px; cursor: pointer;
+      padding: 8px 14px; border-radius: 20px; cursor: pointer;
       display: flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap;
     }
     .mode-bar { display: flex; gap: 8px; overflow-x: auto; align-items: center; }
     .mode-btn.active {
       background: #FBBF24; color: #0F172A; border-color: #FEF08A;
-      transform: scale(1.05); box-shadow: 0 4px 14px rgba(251,191,36,0.4);
+      transform: scale(1.04); box-shadow: 0 4px 14px rgba(251,191,36,0.4);
+    }
+    .flow-btn.on {
+      background: #06D6A0; color: #0F172A; border-color: #A7F3D0;
     }
 
     /* Overheat Gauge */
     .heat-box {
       display: flex; align-items: center; gap: 10px;
       background: #020617; border: 3px solid #334155; border-radius: 20px;
-      padding: 6px 14px; min-width: 215px;
+      padding: 6px 14px; min-width: 195px;
     }
     .heat-label { font-size: 14px; font-weight: 700; color: #94A3B8; white-space: nowrap; }
     .heat-track {
@@ -76,8 +79,8 @@
     .coach-banner {
       position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
       background: rgba(15, 23, 42, 0.92); border: 3px solid #FBBF24;
-      color: #FEF08A; padding: 8px 24px; border-radius: 99px;
-      font-size: 22px; font-weight: 700; pointer-events: none; z-index: 10;
+      color: #FEF08A; padding: 7px 22px; border-radius: 99px;
+      font-size: 21px; font-weight: 700; cursor: pointer; z-index: 10;
       white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,0.45);
     }
 
@@ -130,8 +133,10 @@
         <button class="mode-btn" data-word="CAT">🐱 CAT</button>
         <button class="mode-btn" data-word="MOM">❤️ MOM</button>
         <button class="mode-btn" data-word="DAD">⭐ DAD</button>
-        <button class="mode-btn" data-word="AZ">🔤 A-Z Pick</button>
+        <button class="mode-btn" data-word="AZ">🔤 A-Z</button>
       </div>
+
+      <button class="flow-btn on" id="flow-btn" title="Hold finger down across strokes!">⚡ No-Lift: ON</button>
 
       <div class="heat-box">
         <span class="heat-label" id="heat-icon">🌡️ LASER</span>
@@ -140,7 +145,7 @@
     </header>
 
     <main class="arena">
-      <div class="coach-banner" id="coach-banner">Start at the TOP Green Star!</div>
+      <div class="coach-banner" id="coach-banner" title="Tap to hear letter">Letter W</div>
       <canvas id="trace-canvas"></canvas>
     </main>
 
@@ -149,10 +154,10 @@
 
   <div id="win-modal">
     <div class="win-card">
-      <div style="font-size:84px;" id="win-emoji">🏆✨</div>
-      <div style="font-size:48px;font-weight:700;color:#FDE047;" id="win-title">AWESOME WRITING!</div>
-      <div style="font-size:22px;color:#CBD5E1;" id="win-sub">You wrote every letter starting from the top!</div>
-      <button class="next-btn" id="next-word-btn">🚀 Trace Next Word!</button>
+      <div style="font-size:84px;">🏆✨</div>
+      <div style="font-size:48px;font-weight:700;color:#FDE047;" id="win-title">WYATT!</div>
+      <div style="font-size:22px;color:#CBD5E1;">Great letter tracing!</div>
+      <button class="next-btn" id="next-word-btn">🔄 Trace Again!</button>
     </div>
   </div>
 
@@ -166,35 +171,43 @@
     document.getElementById('name-btn').textContent = (isEmma ? '🦄 ' : '🦖 ') + primaryName;
     document.getElementById('sib-btn').textContent = (isEmma ? '🦖 ' : '🦄 ') + siblingName;
 
-    // Occupational-Therapy Top-Down Stroke Definitions (Normalized 0..100 Space)
-    // Every single vertical/diagonal stroke starts at the TOP (y=12) and goes DOWN (y=88)!
+    // Fluid Kindergarten Manuscript Stroke Definitions (0..100 Normalized Space)
+    // - Connected-corner letters (W, V, Z, L, M, N, U) are continuous single-motion paths!
+    // - T starts with the horizontal top bar (Left->Right), then vertical center stem (Top->Down)!
     const STROKES = {
-      A: [ [[50,12],[20,88]], [[50,12],[80,88]], [[30,58],[70,58]] ],
-      B: [ [[26,12],[26,88]], [[26,12],[65,18],[72,34],[62,48],[26,50]], [[26,50],[68,52],[75,70],[65,86],[26,88]] ],
-      C: [ [[74,24],[50,12],[26,26],[22,50],[26,74],[50,88],[74,76]] ],
+      A: [ [[50,12],[20,88]], [[50,12],[80,88]], [[31,58],[69,58]] ],
+      B: [ [[26,12],[26,88]], [[26,12],[64,16],[74,31],[64,47],[26,49],[68,52],[76,69],[66,85],[26,88]] ],
+      C: [ [[74,24],[50,12],[26,26],[20,50],[26,74],[50,88],[74,76]] ],
       D: [ [[26,12],[26,88]], [[26,12],[62,16],[78,36],[78,64],[62,84],[26,88]] ],
-      E: [ [[26,12],[26,88]], [[26,12],[74,12]], [[26,48],[66,48]], [[26,88],[74,88]] ],
+      E: [ [[26,12],[26,88],[74,88]], [[26,12],[74,12]], [[26,48],[66,48]] ],
       F: [ [[26,12],[26,88]], [[26,12],[74,12]], [[26,48],[66,48]] ],
-      G: [ [[74,24],[50,12],[26,26],[22,50],[26,74],[50,88],[74,76],[74,52],[50,52]] ],
+      G: [ [[74,24],[50,12],[26,26],[20,50],[26,74],[50,88],[74,76],[74,52],[50,52]] ],
       H: [ [[24,12],[24,88]], [[76,12],[76,88]], [[24,48],[76,48]] ],
-      I: [ [[50,12],[50,88]], [[28,12],[72,12]], [[28,88],[72,88]] ],
-      J: [ [[62,12],[62,72],[48,88],[30,84],[24,70]] ],
-      K: [ [[26,12],[26,88]], [[74,12],[26,50]], [[38,40],[76,88]] ],
-      L: [ [[28,12],[28,88]], [[28,88],[74,88]] ],
-      M: [ [[18,12],[18,88]], [[18,12],[50,56]], [[82,12],[50,56]], [[82,12],[82,88]] ],
-      N: [ [[24,12],[24,88]], [[24,12],[76,88]], [[76,12],[76,88]] ],
-      O: [ [[50,12],[24,26],[20,50],[24,74],[50,88],[76,74],[80,50],[76,26],[50,12]] ],
+      I: [ [[28,12],[72,12]], [[50,12],[50,88]], [[28,88],[72,88]] ],
+      J: [ [[28,12],[76,12]], [[54,12],[54,72],[42,88],[26,84],[20,70]] ],
+      K: [ [[26,12],[26,88]], [[74,12],[28,48],[76,88]] ],
+      L: [ [[28,12],[28,88],[74,88]] ],
+      M: [ [[18,12],[18,88]], [[18,12],[50,60],[82,12],[82,88]] ],
+      N: [ [[24,12],[24,88]], [[24,12],[76,88],[76,12]] ],
+      O: [ [[50,12],[24,26],[18,50],[24,74],[50,88],[76,74],[82,50],[76,26],[50,12]] ],
       P: [ [[26,12],[26,88]], [[26,12],[66,16],[76,32],[66,48],[26,50]] ],
-      Q: [ [[50,12],[24,26],[20,50],[24,74],[50,88],[76,74],[80,50],[76,26],[50,12]], [[56,62],[80,88]] ],
-      R: [ [[26,12],[26,88]], [[26,12],[66,16],[76,32],[66,48],[26,50]], [[48,48],[76,88]] ],
+      Q: [ [[50,12],[24,26],[18,50],[24,74],[50,88],[76,74],[82,50],[76,26],[50,12]], [[56,62],[80,88]] ],
+      R: [ [[26,12],[26,88]], [[26,12],[66,16],[76,32],[66,48],[26,50],[76,88]] ],
       S: [ [[72,22],[50,12],[28,22],[30,42],[70,58],[72,78],[50,88],[28,78]] ],
-      T: [ [[50,12],[50,88]], [[18,12],[82,12]] ],
+      T: [ [[18,12],[82,12]], [[50,12],[50,88]] ],
       U: [ [[24,12],[24,68],[38,86],[62,86],[76,68],[76,12]] ],
-      V: [ [[20,12],[50,88]], [[80,12],[50,88]] ],
-      W: [ [[14,12],[32,88]], [[32,88],[50,30]], [[50,30],[68,88]], [[68,88],[86,12]] ],
+      V: [ [[20,12],[50,88],[80,12]] ],
+      W: [ [[14,12],[32,88],[50,28],[68,88],[86,12]] ],
       X: [ [[22,12],[78,88]], [[78,12],[22,88]] ],
-      Y: [ [[22,12],[50,50]], [[78,12],[50,50]], [[50,50],[50,88]] ],
-      Z: [ [[22,12],[78,12]], [[78,12],[22,88]], [[22,88],[78,88]] ]
+      Y: [ [[22,12],[50,48]], [[78,12],[50,48],[50,88]] ],
+      Z: [ [[22,12],[78,12],[22,88],[78,88]] ]
+    };
+
+    const PHONETIC_NAMES = {
+      A: 'A', B: 'Bee', C: 'See', D: 'Dee', E: 'E', F: 'Eff', G: 'Jee',
+      H: 'Aitch', I: 'Eye', J: 'Jay', K: 'Kay', L: 'El', M: 'Em', N: 'En',
+      O: 'Oh', P: 'Pee', Q: 'Cue', R: 'Ar', S: 'Ess', T: 'Tee', U: 'You',
+      V: 'Vee', W: 'Double-U', X: 'Ex', Y: 'Why', Z: 'Zee'
     };
 
     const CW = 900, CH = 500;
@@ -208,6 +221,8 @@
     let densePath = [];
     let progressIdx = 0;
     let isTracing = false;
+    let pointerDown = false;
+    let noLiftMode = true; // Lets kid keep finger down across strokes or corners!
     let heat = 0;
     let isOffTrack = false;
     let pointerPos = { x: 0, y: 0 };
@@ -231,19 +246,20 @@
     if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
     [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
 
-    // 2. Audio & Voice Coaching
+    // 2. Minimal, Clean Voice & Synth Audio (Only Speaks Letter Name & Final Word!)
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    function speak(text) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.rate = 0.94; u.pitch = 1.1;
-        window.speechSynthesis.speak(u);
-      }
+    function speakLetterOrWord(text) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const spoken = text.length === 1 ? (PHONETIC_NAMES[text.toUpperCase()] || text) : text;
+      const u = new SpeechSynthesisUtterance(spoken);
+      u.rate = text.length === 1 ? 0.88 : 0.94;
+      u.pitch = 1.1;
+      window.speechSynthesis.speak(u);
     }
 
     function playTone(f1, f2, dur = 0.14, type = 'triangle', vol = 0.22) {
@@ -260,9 +276,17 @@
       osc.start(now); osc.stop(now + dur);
     }
 
-    // 3. Build Dense Waypoints for Current Stroke (So Progress Can Only Move Forward!)
+    // Toggle No-Lift Continuous Mode
+    const flowBtn = document.getElementById('flow-btn');
+    flowBtn.onpointerdown = () => {
+      noLiftMode = !noLiftMode;
+      flowBtn.classList.toggle('on', noLiftMode);
+      flowBtn.textContent = noLiftMode ? '⚡ No-Lift: ON' : '✋ Lift Stroke: ON';
+      playTone(440, 660, 0.12);
+    };
+
+    // 3. Build Dense Waypoints for Current Stroke
     function toCanvasXY(pt) {
-      // Center the letter nicely in a 400x360 box in the middle of the 900x500 canvas
       return {
         x: 250 + (pt[0] / 100) * 400,
         y: 78 + (pt[1] / 100) * 370
@@ -301,13 +325,22 @@
         tile.textContent = ch;
         tile.onpointerdown = () => {
           letterIdx = idx;
-          loadLetter();
+          loadLetter(true);
         };
         bar.appendChild(tile);
       });
     }
 
-    function loadLetter() {
+    function updateBanner() {
+      const ch = currentWord[letterIdx];
+      const strokes = STROKES[ch] || STROKES.A;
+      document.getElementById('coach-banner').textContent =
+        strokes.length > 1
+          ? `Letter ${ch} • Part ${strokeIdx + 1} of ${strokes.length}`
+          : `Trace Letter ${ch}`;
+    }
+
+    function loadLetter(announce = true) {
       strokeIdx = 0;
       progressIdx = 0;
       isTracing = false;
@@ -316,9 +349,8 @@
       const strokes = STROKES[ch] || STROKES.A;
       densePath = buildDenseStroke(strokes[0]);
       renderLetterBar();
-      const startHint = ch === 'W' ? 'Trace W starting at the TOP LEFT star!' : `Trace the letter ${ch}! Start at the green star!`;
-      document.getElementById('coach-banner').textContent = `Letter ${ch} • Stroke 1 of ${strokes.length} — Start at the Green Star!`;
-      speak(startHint);
+      updateBanner();
+      if (announce) speakLetterOrWord(ch);
     }
 
     function loadStroke(sIdx) {
@@ -326,11 +358,23 @@
       const strokes = STROKES[ch] || STROKES.A;
       strokeIdx = sIdx;
       progressIdx = 0;
-      isTracing = false;
       setHeat(0);
       densePath = buildDenseStroke(strokes[strokeIdx]);
-      document.getElementById('coach-banner').textContent = `Letter ${ch} • Stroke ${strokeIdx + 1} of ${strokes.length} — Follow the Arrows!`;
+      updateBanner();
+
+      // If No-Lift Mode is OFF, require lifting and tapping the next green star
+      if (!noLiftMode) {
+        isTracing = false;
+      } else if (pointerDown) {
+        // Keep tracing seamlessly as soon as finger nears the new start star!
+        const d = Math.hypot(pointerPos.x - densePath[0].x, pointerPos.y - densePath[0].y);
+        isTracing = d <= 68;
+      }
     }
+
+    document.getElementById('coach-banner').onpointerdown = () => {
+      speakLetterOrWord(currentWord[letterIdx]);
+    };
 
     // 4. Mode Picker Buttons
     document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -343,11 +387,11 @@
         else if (w === 'AZ') currentWord = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
         else currentWord = w.split('');
         letterIdx = 0;
-        loadLetter();
+        loadLetter(true);
       };
     });
 
-    // 5. Pointer Tracking, Directional Enforcement & Overheat Check
+    // 5. Pointer Tracking, No-Lift Chaining & Overheat Check
     function getCanvasPt(e) {
       const r = canvas.getBoundingClientRect();
       return {
@@ -359,36 +403,48 @@
     canvas.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       canvas.setPointerCapture(e.pointerId);
+      pointerDown = true;
       const pt = getCanvasPt(e);
       pointerPos = pt;
 
       const targetPt = densePath[progressIdx];
       const dist = Math.hypot(pt.x - targetPt.x, pt.y - targetPt.y);
 
-      if (dist <= 58) {
+      if (dist <= 64) {
         isTracing = true;
         isOffTrack = false;
-        playTone(440, 580, 0.12, 'sine', 0.2);
+        playTone(440, 580, 0.1, 'sine', 0.18);
       } else {
-        // Tried to start at the wrong end (e.g. bottom of W)!
-        playTone(190, 140, 0.25, 'sawtooth', 0.25);
-        document.getElementById('coach-banner').textContent = '⬆️ Oops! Start at the glowing GREEN star!';
-        speak('Start at the green star!');
-        for (let i = 0; i < 12; i++) {
-          sparks.push({ x: targetPt.x, y: targetPt.y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, color: '#06D6A0', life: 25 });
+        // Gentle visual + soft boop if tapping far from the green star (No annoying voice!)
+        playTone(220, 170, 0.14, 'triangle', 0.15);
+        for (let i = 0; i < 10; i++) {
+          sparks.push({ x: targetPt.x, y: targetPt.y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, color: '#06D6A0', life: 22 });
         }
       }
     });
 
     canvas.addEventListener('pointermove', (e) => {
-      if (!isTracing) return;
+      if (!pointerDown) return;
       const pt = getCanvasPt(e);
       pointerPos = pt;
 
-      // Only allow advancing forward within a small window ahead of current progressIdx
+      // In No-Lift mode, if finger glides onto the green start orb, engage automatically!
+      if (!isTracing && noLiftMode) {
+        const targetPt = densePath[progressIdx];
+        if (Math.hypot(pt.x - targetPt.x, pt.y - targetPt.y) <= 62) {
+          isTracing = true;
+          isOffTrack = false;
+          playTone(440, 580, 0.09, 'sine', 0.16);
+        }
+        return;
+      }
+
+      if (!isTracing) return;
+
+      // Allow smooth look-ahead around corners (like W, M, Z, B) without getting stuck
       let bestIdx = progressIdx;
       let minDist = Infinity;
-      const maxLookAhead = Math.min(densePath.length - 1, progressIdx + 12);
+      const maxLookAhead = Math.min(densePath.length - 1, progressIdx + 16);
 
       for (let i = progressIdx; i <= maxLookAhead; i++) {
         const d = Math.hypot(pt.x - densePath[i].x, pt.y - densePath[i].y);
@@ -398,15 +454,14 @@
         }
       }
 
-      if (minDist <= 50) {
-        // On Track! Cool down laser & advance
+      if (minDist <= 56) {
         isOffTrack = false;
-        setHeat(heat - 2.5);
+        setHeat(heat - 2.8);
         if (bestIdx > progressIdx) {
           progressIdx = bestIdx;
-          if (progressIdx % 5 === 0) {
+          if (progressIdx % 6 === 0) {
             const p = progressIdx / densePath.length;
-            playTone(360 + p * 380, 400 + p * 380, 0.07, 'sine', 0.14);
+            playTone(360 + p * 380, 400 + p * 380, 0.06, 'sine', 0.12);
           }
           sparks.push({
             x: densePath[progressIdx].x,
@@ -414,23 +469,21 @@
             vx: (Math.random() - 0.5) * 3,
             vy: (Math.random() - 0.5) * 3,
             color: '#06D6A0',
-            life: 18
+            life: 16
           });
         }
 
-        // Check if stroke reached the finish flag!
         if (progressIdx >= densePath.length - 2) {
           completeCurrentStroke();
         }
       } else {
-        // Off Track! Overheating!
         isOffTrack = true;
-        setHeat(heat + 3.6);
-        if (tick % 4 === 0) playTone(145, 110, 0.08, 'sawtooth', 0.2);
+        setHeat(heat + 3.4);
+        if (tick % 5 === 0) playTone(145, 110, 0.07, 'sawtooth', 0.16);
         sparks.push({
           x: pt.x, y: pt.y,
           vx: (Math.random() - 0.5) * 7, vy: (Math.random() - 0.5) * 7,
-          color: '#EF4444', life: 20
+          color: '#EF4444', life: 18
         });
 
         if (heat >= 100) {
@@ -440,6 +493,7 @@
     });
 
     window.addEventListener('pointerup', () => {
+      pointerDown = false;
       isTracing = false;
       isOffTrack = false;
       document.body.classList.remove('overheat-shake');
@@ -450,32 +504,28 @@
       isOffTrack = false;
       progressIdx = 0;
       setHeat(0);
-      playTone(130, 55, 0.45, 'sawtooth', 0.35);
+      playTone(130, 55, 0.4, 'sawtooth', 0.3);
       document.body.classList.add('blowout-flash');
-      setTimeout(() => document.body.classList.remove('blowout-flash'), 400);
-      document.getElementById('coach-banner').textContent = '💥 Laser Overheated! Stay inside the glowing track!';
-      speak('Laser overheated! Stay on the track and try again!');
+      setTimeout(() => document.body.classList.remove('blowout-flash'), 380);
     }
 
     function completeCurrentStroke() {
-      isTracing = false;
       setHeat(0);
-      playTone(523.25, 1046.5, 0.25, 'triangle', 0.32);
+      playTone(523.25, 1046.5, 0.22, 'triangle', 0.28);
 
       const ch = currentWord[letterIdx];
       const strokes = STROKES[ch] || STROKES.A;
       if (strokeIdx + 1 < strokes.length) {
         loadStroke(strokeIdx + 1);
       } else {
-        // Finished all strokes of this letter!
-        speak(ch);
+        isTracing = false;
         if (letterIdx + 1 < currentWord.length) {
           setTimeout(() => {
             letterIdx++;
-            loadLetter();
-          }, 650);
+            loadLetter(true);
+          }, 480);
         } else {
-          setTimeout(handleWordWin, 650);
+          setTimeout(handleWordWin, 520);
         }
       }
     }
@@ -485,18 +535,18 @@
         setTimeout(() => playTone(f, f * 1.02, 0.28, 'triangle', 0.3), i * 110);
       });
       const wordStr = currentWord.join('');
-      document.getElementById('win-title').textContent = wordStr.length <= 6 ? `${wordStr}!` : 'GREAT JOB!';
+      document.getElementById('win-title').textContent = wordStr.length <= 6 ? `${wordStr}!` : 'AWESOME!';
       document.getElementById('win-modal').style.display = 'flex';
-      speak(`Awesome writing! You traced ${wordStr}!`);
+      if (wordStr.length <= 6) speakLetterOrWord(wordStr);
     }
 
     document.getElementById('next-word-btn').onclick = () => {
       document.getElementById('win-modal').style.display = 'none';
       letterIdx = 0;
-      loadLetter();
+      loadLetter(true);
     };
 
-    // 6. 60 FPS Canvas Renderer (Racetrack, Arrows, Completed Strokes, & Pilot Pod)
+    // 6. 60 FPS Canvas Renderer
     function drawStrokePolyline(pts, width, color, dash = []) {
       ctx.save();
       ctx.lineCap = 'round';
@@ -516,42 +566,39 @@
 
     function render() {
       tick++;
-      if (!isTracing && heat > 0) setHeat(heat - 0.8);
+      if (!isTracing && heat > 0) setHeat(heat - 0.9);
 
       ctx.clearRect(0, 0, CW, CH);
 
-      // Subtle handwriting guideline rows (Top line, Dotted midline, Baseline)
+      // Handwriting guidelines (Top line, Dotted midline, Baseline)
       ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
       ctx.lineWidth = 3;
       ctx.setLineDash([]);
       [122, 404].forEach(y => { ctx.beginPath(); ctx.moveTo(140, y); ctx.lineTo(760, y); ctx.stroke(); });
       ctx.setLineDash([12, 12]);
-      ctx.beginPath(); ctx.moveTo(140, 263); ctx.lineTo(760, y = 263); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(140, 263); ctx.lineTo(760, 263); ctx.stroke();
       ctx.setLineDash([]);
 
       const ch = currentWord[letterIdx];
       const strokes = STROKES[ch] || STROKES.A;
 
-      // 1. Draw all ghost strokes of the full letter
       strokes.forEach((s, idx) => {
-        drawStrokePolyline(s, 56, 'rgba(30, 41, 59, 0.85)');
-        drawStrokePolyline(s, 48, idx < strokeIdx ? '#06D6A0' : 'rgba(51, 65, 85, 0.7)');
+        drawStrokePolyline(s, 58, 'rgba(30, 41, 59, 0.85)');
+        drawStrokePolyline(s, 50, idx < strokeIdx ? '#06D6A0' : 'rgba(51, 65, 85, 0.7)');
       });
 
-      // 2. Highlight active stroke track + animated center guide dashes
       const activeRaw = strokes[strokeIdx];
-      drawStrokePolyline(activeRaw, 52, isOffTrack ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.28)');
+      drawStrokePolyline(activeRaw, 54, isOffTrack ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.28)');
       ctx.save();
       ctx.lineDashOffset = -(tick * 1.2);
       drawStrokePolyline(activeRaw, 6, 'rgba(253, 224, 71, 0.65)', [14, 18]);
       ctx.restore();
 
-      // 3. Draw traced green laser progress along current stroke
       if (progressIdx > 0 && densePath.length > 0) {
         ctx.save();
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.lineWidth = 44;
+        ctx.lineWidth = 46;
         ctx.strokeStyle = '#06D6A0';
         ctx.shadowColor = '#06D6A0';
         ctx.shadowBlur = 18;
@@ -564,7 +611,6 @@
         ctx.restore();
       }
 
-      // 4. Draw Finish Flag at End of Active Stroke
       if (densePath.length > 1) {
         const endPt = densePath[densePath.length - 1];
         ctx.beginPath();
@@ -579,9 +625,8 @@
         ctx.textBaseline = 'middle';
         ctx.fillText('🏁', endPt.x, endPt.y);
 
-        // 5. Draw Current Laser Pod / Pulsing Green Start Orb
         const curPt = densePath[progressIdx];
-        const pulse = 28 + Math.sin(tick * 0.12) * 4;
+        const pulse = 28 + Math.sin(tick * 0.14) * 4;
         ctx.beginPath();
         ctx.arc(curPt.x, curPt.y, pulse, 0, Math.PI * 2);
         ctx.fillStyle = isOffTrack ? '#EF4444' : '#06D6A0';
@@ -594,7 +639,6 @@
         ctx.fillText(progressIdx === 0 ? '⭐' : (isEmma ? '🐶' : '🐉'), curPt.x, curPt.y);
       }
 
-      // 6. Draw Red Overheat Warning Tether if Finger Veers Off-Track
       if (isTracing && isOffTrack && densePath[progressIdx]) {
         const curPt = densePath[progressIdx];
         ctx.save();
@@ -610,7 +654,6 @@
         ctx.restore();
       }
 
-      // 7. Draw Sparks
       for (let i = sparks.length - 1; i >= 0; i--) {
         const sp = sparks[i];
         sp.x += sp.vx; sp.y += sp.vy; sp.life--;
@@ -622,7 +665,7 @@
       requestAnimationFrame(render);
     }
 
-    loadLetter();
+    loadLetter(true);
     render();
   </script>
 </body>
