@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Finger Paint Studio!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --app-w: 100vw; --app-h: 100dvh; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
+      font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+      background: linear-gradient(135deg, #7209B7 0%, #4361EE 50%, #4CC9F0 100%);
+      touch-action: none;
+    }
+    #studio-app {
+      position: fixed; inset: 0; width: var(--app-w); height: var(--app-h);
+      display: grid;
+      grid-template-rows: 68px 1fr 84px;
+      grid-template-columns: 98px 1fr 112px;
+      gap: 10px; padding: 10px 14px;
+    }
+    body.boom-shake { animation: boomShake 0.45s both; }
+    @keyframes boomShake {
+      15%, 85% { transform: translate(-12px, 8px); }
+      35%, 65% { transform: translate(14px, -10px); }
+      50% { transform: translate(-10px, -6px); }
+    }
+
+    /* Top Bar: Back, Coloring Templates, Undo, Clear, Ta-Da! */
+    header {
+      grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between;
+      background: rgba(255,255,255,0.94); border-radius: 24px; padding: 6px 14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.18); border: 4px solid #fff; gap: 8px;
+    }
+    .nav-btn, .action-btn, .tpl-btn {
+      font-family: inherit; font-weight: 700; border: 3px solid #E2E8F0;
+      background: #F8FAFC; color: #1E293B; border-radius: 18px;
+      padding: 8px 14px; font-size: 17px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; text-decoration: none;
+      transition: transform 0.15s, background 0.15s; white-space: nowrap;
+    }
+    .nav-btn:active, .action-btn:active, .tpl-btn:active { transform: scale(0.93); }
+    .templates-bar {
+      display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 2px;
+    }
+    .tpl-btn { font-size: 24px; padding: 6px 12px; }
+    .tpl-btn.active {
+      background: #FDE047; border-color: #F59E0B; transform: scale(1.08);
+      box-shadow: 0 4px 12px rgba(245,158,11,0.35);
+    }
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+    .btn-undo { background: #E0F2FE; border-color: #38BDF8; color: #0369A1; }
+    .btn-clear { background: #FFE4E6; border-color: #FB7185; color: #BE123C; }
+    .btn-tada { background: #DCFCE7; border-color: #22C55E; color: #15803D; }
+
+    /* Left Dock: Brushes & Sizes */
+    .left-dock {
+      background: rgba(255,255,255,0.94); border-radius: 26px; padding: 10px 8px;
+      display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.18); border: 4px solid #fff; overflow-y: auto;
+    }
+    .tool-btn {
+      width: 74px; height: 58px; border-radius: 18px; border: 3px solid #E2E8F0;
+      background: #F8FAFC; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; cursor: pointer; font-family: inherit; font-weight: 700;
+      font-size: 12px; color: #334155; transition: all 0.15s;
+    }
+    .tool-btn span.ic { font-size: 26px; line-height: 1.1; }
+    .tool-btn.active {
+      background: #4361EE; color: #fff; border-color: #1D4ED8;
+      transform: scale(1.07); box-shadow: 0 6px 14px rgba(67,97,238,0.4);
+    }
+    .size-row { display: flex; gap: 6px; align-items: center; padding-top: 4px; }
+    .size-dot {
+      border-radius: 50%; background: #94A3B8; border: 3px solid #fff;
+      cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); transition: 0.15s;
+    }
+    .size-dot.active { background: #F59E0B; transform: scale(1.2); border-color: #FEF08A; }
+
+    /* Center Drawing Stage (2 Stacked Canvases: Paint + Multiply Line Art) */
+    .canvas-stage {
+      position: relative; width: 100%; height: 100%;
+      background: #FFFFFF; border-radius: 28px; overflow: hidden;
+      box-shadow: 0 14px 34px rgba(0,0,0,0.28); border: 6px solid #fff;
+    }
+    .canvas-stage.framed {
+      border: 14px solid #FBBF24;
+      box-shadow: 0 0 45px rgba(251,191,36,0.9), inset 0 0 20px rgba(245,158,11,0.4);
+    }
+    canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    }
+    #paint-canvas { z-index: 1; }
+    #line-canvas { z-index: 2; pointer-events: none; mix-blend-mode: multiply; }
+
+    /* Right Dock: Stamp Stickers */
+    .right-dock {
+      background: rgba(255,255,255,0.94); border-radius: 26px; padding: 10px 8px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-content: start;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.18); border: 4px solid #fff; overflow-y: auto;
+    }
+    .dock-label {
+      grid-column: 1 / -1; text-align: center; font-size: 12px; font-weight: 700;
+      color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;
+    }
+    .stamp-btn {
+      height: 44px; border-radius: 14px; border: 3px solid #F1F5F9;
+      background: #F8FAFC; font-size: 26px; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; transition: 0.15s;
+    }
+    .stamp-btn.active {
+      background: #FDE047; border-color: #F59E0B; transform: scale(1.12);
+      box-shadow: 0 4px 10px rgba(245,158,11,0.35);
+    }
+
+    /* Bottom Dock: Paint Pots Palette */
+    .palette-bar {
+      grid-column: 1 / -1; background: rgba(255,255,255,0.94); border-radius: 28px;
+      padding: 8px 18px; display: flex; align-items: center; justify-content: space-around;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.18); border: 4px solid #fff; gap: 8px;
+    }
+    .color-pot {
+      width: 56px; height: 56px; border-radius: 50%; border: 5px solid #fff;
+      cursor: pointer; box-shadow: 0 5px 12px rgba(0,0,0,0.22);
+      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+    }
+    .color-pot::after {
+      content: ''; position: absolute; top: 8px; left: 10px;
+      width: 14px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,0.55); transform: rotate(-25deg);
+    }
+    .color-pot.active {
+      transform: translateY(-10px) scale(1.22);
+      border-color: #1E293B; box-shadow: 0 12px 22px rgba(0,0,0,0.32);
+    }
+
+    /* Ta-Da Celebration Modal */
+    #tada-modal {
+      display: none; position: fixed; inset: 0; z-index: 80;
+      background: rgba(15, 23, 42, 0.72); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    .tada-card {
+      background: #fff; border-radius: 36px; padding: 28px 44px; text-align: center;
+      border: 6px solid #FBBF24; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="studio-app">
+    <header>
+      <a href="index.html" class="nav-btn">🏠 Back</a>
+
+      <div class="templates-bar" id="templates-bar">
+        <button class="tpl-btn active" data-tpl="blank" title="Blank Canvas">📄</button>
+        <button class="tpl-btn" data-tpl="dragon" title="Sparky the Cloud Dragon">🐉</button>
+        <button class="tpl-btn" data-tpl="doggie" title="Emma's Stuffed Doggie">🐶</button>
+        <button class="tpl-btn" data-tpl="dino" title="Mighty Dino">🦖</button>
+        <button class="tpl-btn" data-tpl="unicorn" title="Rainbow Unicorn">🦄</button>
+        <button class="tpl-btn" data-tpl="rocket" title="Cosmic Rocket">🚀</button>
+      </div>
+
+      <div class="top-actions">
+        <button class="action-btn btn-undo" id="undo-btn">↩️ Undo</button>
+        <button class="action-btn btn-clear" id="clear-btn">🧨 Boom Clear</button>
+        <button class="action-btn btn-tada" id="tada-btn">🖼️ Ta-Da!</button>
+      </div>
+    </header>
+
+    <!-- Left Brushes & Sizes -->
+    <aside class="left-dock">
+      <button class="tool-btn active" data-tool="brush"><span class="ic">🖌️</span>Brush</button>
+      <button class="tool-btn" data-tool="rainbow"><span class="ic">🌈</span>Rainbow</button>
+      <button class="tool-btn" data-tool="glitter"><span class="ic">✨</span>Glitter</button>
+      <button class="tool-btn" data-tool="bucket"><span class="ic">🪣</span>Fill</button>
+      <button class="tool-btn" data-tool="eraser"><span class="ic">🧼</span>Eraser</button>
+
+      <div class="size-row">
+        <div class="size-dot" data-size="10" style="width:18px;height:18px;"></div>
+        <div class="size-dot active" data-size="24" style="width:26px;height:26px;"></div>
+        <div class="size-dot" data-size="44" style="width:34px;height:34px;"></div>
+      </div>
+    </aside>
+
+    <!-- Center Dual-Layer Canvas -->
+    <main class="canvas-stage" id="canvas-stage">
+      <canvas id="paint-canvas"></canvas>
+      <canvas id="line-canvas"></canvas>
+    </main>
+
+    <!-- Right Sound Stamps -->
+    <aside class="right-dock" id="stamp-dock">
+      <div class="dock-label">Stamps</div>
+    </aside>
+
+    <!-- Bottom Color Palette -->
+    <footer class="palette-bar" id="palette-bar"></footer>
+  </div>
+
+  <!-- Ta-Da Modal -->
+  <div id="tada-modal">
+    <div class="tada-card">
+      <div style="font-size:78px;">🎨🌟🖼️</div>
+      <div style="font-size:40px;font-weight:700;color:#1E293B;" id="tada-title">Masterpiece!</div>
+      <div style="font-size:20px;color:#475569;">Saved to your tablet gallery!</div>
+      <div style="display:flex;gap:14px;margin-top:6px;">
+        <button class="action-btn btn-tada" id="download-btn" style="font-size:22px;padding:12px 28px;">💾 Save Picture</button>
+        <button class="action-btn btn-undo" id="keep-painting-btn" style="font-size:22px;padding:12px 28px;">🖌️ Keep Painting</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    const PALETTE = [
+      { hex: '#EF4444', name: 'Fire Truck Red' },
+      { hex: '#F97316', name: 'Tiger Orange' },
+      { hex: '#FACC15', name: 'Sunshine Yellow' },
+      { hex: '#22C55E', name: 'Emerald Dragon Green' },
+      { hex: '#06B6D4', name: 'Sky Blue' },
+      { hex: '#3B82F6', name: 'Ocean Blue' },
+      { hex: '#8B5CF6', name: 'Royal Purple' },
+      { hex: '#EC4899', name: 'Unicorn Pink' },
+      { hex: '#A16207', name: 'Teddy Bear Brown' },
+      { hex: '#1E293B', name: 'Midnight Black' },
+      { hex: '#F8FAFC', name: 'Doggie Fluffy White' }
+    ];
+
+    const STAMPS = [
+      { emoji: '🐉', name: 'Sparky Dragon', pitch: 520 },
+      { emoji: '🐶', name: 'Doggie', pitch: 740 },
+      { emoji: '🦖', name: 'T-Rex', pitch: 220 },
+      { emoji: '🦄', name: 'Unicorn', pitch: 660 },
+      { emoji: '🚀', name: 'Rocket', pitch: 440 },
+      { emoji: '👑', name: 'Golden Crown', pitch: 880 },
+      { emoji: '🌈', name: 'Rainbow', pitch: 587 },
+      { emoji: '🦋', name: 'Butterfly', pitch: 698 },
+      { emoji: '⭐', name: 'Gold Star', pitch: 987 },
+      { emoji: '❤️', name: 'Big Heart', pitch: 622 }
+    ];
+
+    const CW = 1000;
+    const CH = 620;
+    const paintCanvas = document.getElementById('paint-canvas');
+    const lineCanvas = document.getElementById('line-canvas');
+    paintCanvas.width = CW; paintCanvas.height = CH;
+    lineCanvas.width = CW; lineCanvas.height = CH;
+    const pCtx = paintCanvas.getContext('2d', { willReadFrequently: true });
+    const lCtx = lineCanvas.getContext('2d', { willReadFrequently: true });
+
+    let currentTool = 'brush';
+    let currentColor = isEmma ? '#EC4899' : '#22C55E';
+    let brushSize = 24;
+    let activeStamp = STAMPS[0];
+    let currentTemplate = 'blank';
+    let isDrawing = false;
+    let lastPt = null;
+    let hue = 0;
+    let undoStack = [];
+    let audioCtx = null;
+
+    // 1. Pixel Tablet Viewport Stabilizer
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
+
+    // 2. Audio & Voice Engine
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.95; u.pitch = 1.12;
+        window.speechSynthesis.speak(u);
+      }
+    }
+
+    function playTone(f1, f2, dur = 0.14, type = 'sine', vol = 0.18) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f1, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + dur);
+    }
+
+    // 3. Build Palette & Stamp Docks
+    const paletteBar = document.getElementById('palette-bar');
+    PALETTE.forEach(c => {
+      const pot = document.createElement('div');
+      pot.className = 'color-pot' + (c.hex === currentColor ? ' active' : '');
+      pot.style.background = c.hex;
+      pot.onpointerdown = () => {
+        currentColor = c.hex;
+        if (currentTool === 'eraser' || currentTool === 'stamp') setTool('brush');
+        document.querySelectorAll('.color-pot').forEach(el => el.classList.remove('active'));
+        pot.classList.add('active');
+        playTone(440, 660, 0.12, 'triangle', 0.22);
+        speak(c.name);
+      };
+      paletteBar.appendChild(pot);
+    });
+
+    const stampDock = document.getElementById('stamp-dock');
+    STAMPS.forEach(s => {
+      const btn = document.createElement('button');
+      btn.className = 'stamp-btn';
+      btn.textContent = s.emoji;
+      btn.onpointerdown = () => {
+        activeStamp = s;
+        setTool('stamp');
+        document.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        playTone(s.pitch, s.pitch * 1.3, 0.15, 'triangle', 0.25);
+        speak(s.name);
+      };
+      stampDock.appendChild(btn);
+    });
+
+    function setTool(tool) {
+      currentTool = tool;
+      document.querySelectorAll('.tool-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.tool === tool);
+      });
+      if (tool !== 'stamp') {
+        document.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
+      }
+    }
+
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        setTool(btn.dataset.tool);
+        playTone(520, 760, 0.1, 'sine', 0.2);
+      };
+    });
+
+    document.querySelectorAll('.size-dot').forEach(dot => {
+      dot.onpointerdown = () => {
+        brushSize = Number(dot.dataset.size);
+        document.querySelectorAll('.size-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        playTone(320 + brushSize * 8, 480 + brushSize * 8, 0.1);
+      };
+    });
+
+    // 4. Undo History & Canvas Init
+    function saveState() {
+      if (undoStack.length >= 15) undoStack.shift();
+      undoStack.push(pCtx.getImageData(0, 0, CW, CH));
+    }
+
+    function resetPaintLayer() {
+      pCtx.fillStyle = '#FFFFFF';
+      pCtx.fillRect(0, 0, CW, CH);
+    }
+
+    // 5. Crisp Vector Coloring Book Templates (Drawn on Locked Multiply Layer!)
+    function drawTemplate(name) {
+      currentTemplate = name;
+      lCtx.clearRect(0, 0, CW, CH);
+      if (name === 'blank') return;
+
+      lCtx.save();
+      lCtx.strokeStyle = '#0F172A';
+      lCtx.fillStyle = '#FFFFFF';
+      lCtx.lineWidth = 8;
+      lCtx.lineCap = 'round';
+      lCtx.lineJoin = 'round';
+
+      const circle = (x, y, r, fill = true) => {
+        lCtx.beginPath(); lCtx.arc(x, y, r, 0, Math.PI * 2);
+        if (fill) lCtx.fill();
+        lCtx.stroke();
+      };
+      const ellipse = (x, y, rx, ry, rot = 0, fill = true) => {
+        lCtx.beginPath(); lCtx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+        if (fill) lCtx.fill();
+        lCtx.stroke();
+      };
+
+      if (name === 'doggie') {
+        // Emma's Fluffy Stuffed Doggie Coloring Page!
+        ellipse(370, 250, 38, 82, 0.35); // Left floppy ear
+        ellipse(630, 250, 38, 82, -0.35); // Right floppy ear
+        ellipse(500, 420, 115, 125, 0); // Plump body
+        circle(435, 515, 36); // Left paw
+        circle(565, 515, 36); // Right paw
+        ellipse(620, 430, 48, 22, -0.5); // Wagging tail
+        circle(500, 235, 105); // Fluffy head
+        ellipse(500, 330, 88, 22, 0); // Collar
+        circle(500, 362, 22); // Golden collar tag
+        lCtx.fillStyle = '#0F172A';
+        circle(460, 215, 12); circle(540, 215, 12); // Eyes
+        ellipse(500, 248, 22, 15, 0); // Cute nose
+        lCtx.beginPath(); lCtx.arc(482, 268, 18, 0, Math.PI); lCtx.stroke();
+        lCtx.beginPath(); lCtx.arc(518, 268, 18, 0, Math.PI); lCtx.stroke();
+      } else if (name === 'dragon') {
+        // Sparky the Friendly Cloud Dragon Coloring Page!
+        // Left & Right Wings
+        lCtx.beginPath(); lCtx.moveTo(410, 330); lCtx.quadraticCurveTo(210, 160, 190, 310); lCtx.quadraticCurveTo(280, 350, 410, 390); lCtx.closePath(); lCtx.fill(); lCtx.stroke();
+        lCtx.beginPath(); lCtx.moveTo(590, 330); lCtx.quadraticCurveTo(790, 160, 810, 310); lCtx.quadraticCurveTo(720, 350, 590, 390); lCtx.closePath(); lCtx.fill(); lCtx.stroke();
+        // Tail
+        lCtx.beginPath(); lCtx.moveTo(580, 470); lCtx.quadraticCurveTo(770, 520, 790, 400); lCtx.quadraticCurveTo(720, 440, 590, 420); lCtx.closePath(); lCtx.fill(); lCtx.stroke();
+        ellipse(500, 400, 120, 135, 0); // Dragon Body
+        ellipse(500, 415, 75, 95, 0); // Belly scales
+        // Belly stripes
+        for (let y = 355; y <= 475; y += 30) {
+          lCtx.beginPath(); lCtx.moveTo(435, y); lCtx.lineTo(565, y); lCtx.stroke();
+        }
+        // Horns
+        ellipse(455, 115, 16, 42, -0.25);
+        ellipse(545, 115, 16, 42, 0.25);
+        circle(500, 215, 92); // Smiling Dragon Head
+        circle(430, 520, 38); circle(570, 520, 38); // Feet
+        lCtx.fillStyle = '#0F172A';
+        circle(465, 195, 11); circle(535, 195, 11); // Eyes
+        lCtx.beginPath(); lCtx.arc(500, 235, 42, 0.15 * Math.PI, 0.85 * Math.PI); lCtx.stroke(); // Big smile
+      } else if (name === 'rocket') {
+        // Cosmic Rocket Coloring Page!
+        circle(190, 150, 48); // Moon
+        // Left & Right Fins
+        lCtx.beginPath(); lCtx.moveTo(400, 410); lCtx.lineTo(310, 510); lCtx.lineTo(420, 490); lCtx.closePath(); lCtx.fill(); lCtx.stroke();
+        lCtx.beginPath(); lCtx.moveTo(600, 410); lCtx.lineTo(690, 510); lCtx.lineTo(580, 490); lCtx.closePath(); lCtx.fill(); lCtx.stroke();
+        // Flame
+        lCtx.beginPath(); lCtx.moveTo(445, 495); lCtx.quadraticCurveTo(500, 610, 555, 495); lCtx.closePath(); lCtx.fill(); lCtx.stroke();
+        // Rocket Body
+        lCtx.beginPath(); lCtx.moveTo(500, 85); lCtx.quadraticCurveTo(635, 220, 595, 495); lCtx.lineTo(405, 495); lCtx.quadraticCurveTo(365, 220, 500, 85); lCtx.closePath(); lCtx.fill(); lCtx.stroke();
+        // Nose Cone Line
+        lCtx.beginPath(); lCtx.moveTo(422, 195); lCtx.lineTo(578, 195); lCtx.stroke();
+        circle(500, 295, 62); // Window Rim
+        circle(500, 295, 42); // Inner Glass
+      } else if (name === 'dino') {
+        // Friendly T-Rex / Bronto Coloring Page!
+        for (let i = 0; i < 4; i++) {
+          circle(360 + i * 55, 295 + i * 18, 24); // Back plates
+        }
+        ellipse(480, 400, 145, 105, 0); // Body
+        circle(395, 510, 34); circle(565, 510, 34); // Stompy legs
+        ellipse(650, 430, 75, 28, 0.25); // Tail
+        ellipse(340, 280, 45, 95, -0.2); // Neck
+        ellipse(305, 185, 85, 62, 0); // Dino Head
+        lCtx.fillStyle = '#0F172A';
+        circle(285, 170, 11);
+        lCtx.beginPath(); lCtx.arc(290, 198, 38, 0.1 * Math.PI, 0.75 * Math.PI); lCtx.stroke();
+      } else if (name === 'unicorn') {
+        // Rainbow & Unicorn Coloring Page!
+        for (let r = 260; r >= 140; r -= 38) {
+          lCtx.beginPath(); lCtx.arc(500, 490, r, Math.PI, 0); lCtx.fill(); lCtx.stroke();
+        }
+        circle(300, 480, 78); circle(230, 495, 58); circle(370, 495, 58); // Left Cloud
+        circle(700, 480, 78); circle(630, 495, 58); circle(770, 495, 58); // Right Cloud
+        // Unicorn Horn at Top Center
+        lCtx.beginPath(); lCtx.moveTo(475, 210); lCtx.lineTo(500, 90); lCtx.lineTo(525, 210); lCtx.closePath(); lCtx.fill(); lCtx.stroke();
+      }
+      lCtx.restore();
+    }
+
+    document.querySelectorAll('.tpl-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        document.querySelectorAll('.tpl-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        drawTemplate(btn.dataset.tpl);
+        playTone(523, 784, 0.16, 'triangle', 0.25);
+      };
+    });
+
+    // 6. Fast Scanline Flood Fill (Stays Inside Coloring Template Lines!)
+    function hexToRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    function floodFill(startX, startY, fillHex) {
+      const x0 = Math.round(startX), y0 = Math.round(startY);
+      if (x0 < 0 || x0 >= CW || y0 < 0 || y0 >= CH) return;
+
+      const pImg = pCtx.getImageData(0, 0, CW, CH);
+      const lImg = lCtx.getImageData(0, 0, CW, CH);
+      const pData = pImg.data;
+      const lData = lImg.data;
+      const [fr, fg, fb] = hexToRgb(fillHex);
+
+      const startIdx = (y0 * CW + x0) * 4;
+      // Don't fill if tapping directly on a dark black template outline
+      if (lData[startIdx + 3] > 120 && lData[startIdx] < 80) return;
+
+      const tr = pData[startIdx], tg = pData[startIdx + 1], tb = pData[startIdx + 2];
+      if (Math.abs(tr - fr) < 8 && Math.abs(tg - fg) < 8 && Math.abs(tb - fb) < 8) return;
+
+      const visited = new Uint8Array(CW * CH);
+      const stack = [y0 * CW + x0];
+      visited[y0 * CW + x0] = 1;
+
+      while (stack.length > 0) {
+        const pos = stack.pop();
+        const idx = pos * 4;
+        pData[idx] = fr; pData[idx + 1] = fg; pData[idx + 2] = fb; pData[idx + 3] = 255;
+
+        const x = pos % CW;
+        const y = (pos - x) / CW;
+        const neighbors = [];
+        if (x > 0) neighbors.push(pos - 1);
+        if (x < CW - 1) neighbors.push(pos + 1);
+        if (y > 0) neighbors.push(pos - CW);
+        if (y < CH - 1) neighbors.push(pos + CW);
+
+        for (let i = 0; i < neighbors.length; i++) {
+          const np = neighbors[i];
+          if (visited[np]) continue;
+          visited[np] = 1;
+          const ni = np * 4;
+          // Stop at template black outlines!
+          if (lData[ni + 3] > 110 && lData[ni] < 100) continue;
+          if (Math.abs(pData[ni] - tr) <= 32 && Math.abs(pData[ni + 1] - tg) <= 32 && Math.abs(pData[ni + 2] - tb) <= 32) {
+            stack.push(np);
+          }
+        }
+      }
+      pCtx.putImageData(pImg, 0, 0);
+    }
+
+    // 7. Pointer Drawing, Rainbow, Glitter & Stamps
+    function getCanvasPt(e) {
+      const r = paintCanvas.getBoundingClientRect();
+      return {
+        x: ((e.clientX - r.left) / r.width) * CW,
+        y: ((e.clientY - r.top) / r.height) * CH
+      };
+    }
+
+    function sprayGlitter(x, y, radius, color) {
+      for (let i = 0; i < 14; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const d = Math.random() * radius * 1.4;
+        pCtx.fillStyle = i % 3 === 0 ? '#FDE047' : (i % 2 === 0 ? '#FFFFFF' : color);
+        pCtx.beginPath();
+        pCtx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, 2 + Math.random() * 4, 0, Math.PI * 2);
+        pCtx.fill();
+      }
+    }
+
+    paintCanvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      paintCanvas.setPointerCapture(e.pointerId);
+      const pt = getCanvasPt(e);
+      saveState();
+
+      if (currentTool === 'bucket') {
+        floodFill(pt.x, pt.y, currentColor);
+        playTone(330, 880, 0.22, 'triangle', 0.28);
+        return;
+      }
+      if (currentTool === 'stamp') {
+        pCtx.save();
+        pCtx.font = `${brushSize * 2.6 + 34}px sans-serif`;
+        pCtx.textAlign = 'center';
+        pCtx.textBaseline = 'middle';
+        pCtx.fillText(activeStamp.emoji, pt.x, pt.y);
+        pCtx.restore();
+        playTone(activeStamp.pitch, activeStamp.pitch * 1.4, 0.18, 'triangle', 0.28);
+        return;
+      }
+
+      isDrawing = true;
+      lastPt = pt;
+      pCtx.lineCap = 'round';
+      pCtx.lineJoin = 'round';
+      pCtx.lineWidth = brushSize;
+
+      if (currentTool === 'glitter') {
+        sprayGlitter(pt.x, pt.y, brushSize, currentColor);
+      } else {
+        pCtx.fillStyle = currentTool === 'eraser' ? '#FFFFFF' : (currentTool === 'rainbow' ? `hsl(${hue}, 90%, 55%)` : currentColor);
+        pCtx.beginPath();
+        pCtx.arc(pt.x, pt.y, brushSize / 2, 0, Math.PI * 2);
+        pCtx.fill();
+      }
+      playTone(380, 520, 0.08, 'sine', 0.12);
+    });
+
+    paintCanvas.addEventListener('pointermove', (e) => {
+      if (!isDrawing || !lastPt) return;
+      const pt = getCanvasPt(e);
+
+      if (currentTool === 'glitter') {
+        sprayGlitter(pt.x, pt.y, brushSize, currentColor);
+      } else {
+        pCtx.beginPath();
+        pCtx.moveTo(lastPt.x, lastPt.y);
+        pCtx.lineTo(pt.x, pt.y);
+        pCtx.lineWidth = brushSize;
+        if (currentTool === 'rainbow') {
+          hue = (hue + 6) % 360;
+          pCtx.strokeStyle = `hsl(${hue}, 92%, 55%)`;
+        } else if (currentTool === 'eraser') {
+          pCtx.strokeStyle = '#FFFFFF';
+        } else {
+          pCtx.strokeStyle = currentColor;
+        }
+        pCtx.stroke();
+      }
+      lastPt = pt;
+    });
+
+    window.addEventListener('pointerup', () => {
+      isDrawing = false;
+      lastPt = null;
+    });
+
+    // 8. Undo, Kid Pix Dynamite Clear, and Ta-Da!
+    document.getElementById('undo-btn').onclick = () => {
+      if (undoStack.length > 0) {
+        pCtx.putImageData(undoStack.pop(), 0, 0);
+        playTone(580, 320, 0.15, 'triangle', 0.25);
+      }
+    };
+
+    document.getElementById('clear-btn').onclick = () => {
+      saveState();
+      document.body.classList.remove('boom-shake');
+      void document.body.offsetWidth;
+      document.body.classList.add('boom-shake');
+      playTone(150, 48, 0.45, 'sawtooth', 0.35);
+      resetPaintLayer();
+      speak('Kaboom! Fresh canvas!');
+    };
+
+    function buildCompositeDataURL() {
+      const out = document.createElement('canvas');
+      out.width = CW; out.height = CH;
+      const oCtx = out.getContext('2d');
+      oCtx.drawImage(paintCanvas, 0, 0);
+      oCtx.drawImage(lineCanvas, 0, 0);
+      return out.toDataURL('image/png');
+    }
+
+    document.getElementById('tada-btn').onclick = () => {
+      document.getElementById('canvas-stage').classList.add('framed');
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+        setTimeout(() => playTone(f, f * 1.02, 0.28, 'triangle', 0.3), i * 110);
+      });
+      const kidName = isEmma ? 'Emma' : 'Wyatt';
+      document.getElementById('tada-title').textContent = `${kidName}'s Masterpiece!`;
+      speak(`Ta-da! Amazing painting, ${kidName}!`);
+      try { localStorage.setItem(`savedPainting_${profile}`, paintCanvas.toDataURL()); } catch (e) {}
+      setTimeout(() => { document.getElementById('tada-modal').style.display = 'flex'; }, 550);
+    };
+
+    document.getElementById('keep-painting-btn').onclick = () => {
+      document.getElementById('tada-modal').style.display = 'none';
+      document.getElementById('canvas-stage').classList.remove('framed');
+    };
+
+    document.getElementById('download-btn').onclick = () => {
+      const a = document.createElement('a');
+      a.download = `${profile}-masterpiece.png`;
+      a.href = buildCompositeDataURL();
+      a.click();
+    };
+
+    // Initialize blank canvas (and restore last painting if saved!)
+    resetPaintLayer();
+    const saved = localStorage.getItem(`savedPainting_${profile}`);
+    if (saved) {
+      const img = new Image();
+      img.onload = () => pCtx.drawImage(img, 0, 0);
+      img.src = saved;
+    }
+  </script>
+</body>
+</html>

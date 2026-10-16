@@ -1,5 +1,5 @@
 /* Offline shell for the Wyatt & Emma Pixel WebAPK. */
-const CACHE = 'wyatt-arcade-pixel-v3';
+const CACHE = 'wyatt-arcade-pixel-v4';
 
 const SHELL = [
   '/',
@@ -7,6 +7,7 @@ const SHELL = [
   '/beanstalk.html',
   '/balloon-pop.html',
   '/rocket-count.html',
+  '/finger-paint.html',
   '/manifest.json',
   '/engine/diorama-engine.css',
   '/engine/diorama-engine.js',
