@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Animal Match Safari!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --app-w: 100vw; --app-h: 100dvh; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
+      font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+      background: linear-gradient(180deg, #FEF08A 0%, #FDE047 35%, #86EFAC 75%, #22C55E 100%);
+      touch-action: manipulation;
+    }
+    #safari-stage {
+      position: fixed; inset: 0; width: var(--app-w); height: var(--app-h);
+      display: grid; grid-template-rows: 74px 1fr 68px; padding: 12px 20px; gap: 10px;
+    }
+
+    /* Top HUD */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(255, 255, 255, 0.94); border: 4px solid #FFF;
+      border-radius: 26px; padding: 8px 18px; gap: 12px; z-index: 20;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.12);
+    }
+    .nav-btn, .size-btn, .peek-btn {
+      font-family: inherit; font-weight: 700; font-size: 18px;
+      background: #F1F5F9; color: #1E293B; border: 3px solid #CBD5E1;
+      padding: 8px 16px; border-radius: 20px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap;
+      transition: transform 0.15s, background 0.15s;
+    }
+    .nav-btn:active, .size-btn:active, .peek-btn:active { transform: scale(0.93); }
+    .size-bar { display: flex; gap: 8px; align-items: center; overflow-x: auto; }
+    .size-btn.active {
+      background: #FF9F1C; color: #FFF; border-color: #F59E0B;
+      transform: scale(1.05); box-shadow: 0 4px 12px rgba(245,158,11,0.35);
+    }
+    .peek-btn {
+      background: #06D6A0; color: #0F172A; border-color: #10B981;
+      box-shadow: 0 4px 12px rgba(6,214,160,0.35);
+    }
+
+    /* Center 3D Card Grid */
+    .board-wrap {
+      width: 100%; height: 100%; min-height: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card-grid {
+      width: 100%; height: 100%; max-width: 1120px;
+      display: grid; gap: 14px; padding: 6px;
+      perspective: 1000px;
+    }
+
+    .safari-card {
+      position: relative; width: 100%; height: 100%; cursor: pointer;
+      transform-style: preserve-3d;
+      transition: transform 0.42s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .safari-card.flipped, .safari-card.matched {
+      transform: rotateY(180deg);
+    }
+    .safari-card.matched .card-front {
+      background: #DCFCE7; border-color: #22C55E;
+      box-shadow: 0 0 24px rgba(34, 197, 94, 0.65);
+      animation: matchPop 0.45s ease-out;
+    }
+    .safari-card.hint-wobble {
+      animation: hintWobble 0.5s ease-in-out 2;
+    }
+    @keyframes matchPop {
+      0%, 100% { transform: rotateY(180deg) scale(1); }
+      50% { transform: rotateY(180deg) scale(1.12); }
+    }
+    @keyframes hintWobble {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(-6deg) scale(1.06); }
+      75% { transform: rotate(6deg) scale(1.06); }
+    }
+
+    .card-face {
+      position: absolute; inset: 0; border-radius: 24px;
+      backface-visibility: hidden; -webkit-backface-visibility: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+    /* Safari Crate Back */
+    .card-back {
+      background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+      border: 5px solid #FEF08A; color: #FFF; font-size: 52px;
+    }
+    .card-back::after {
+      content: '🐾'; opacity: 0.9; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.2));
+    }
+    /* Animal Front */
+    .card-front {
+      background: #FFFFFF; border: 5px solid #38BDF8;
+      transform: rotateY(180deg);
+    }
+    .animal-emoji { font-size: clamp(44px, 7vh, 76px); line-height: 1.05; }
+    .animal-name {
+      font-size: clamp(14px, 2.2vh, 20px); font-weight: 700; color: #1E293B;
+      margin-top: 4px; letter-spacing: 0.5px;
+    }
+
+    /* Bottom Safari Collection Tray */
+    footer {
+      background: rgba(255, 255, 255, 0.94); border: 4px solid #FFF;
+      border-radius: 24px; padding: 6px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+    }
+    .tray-label { font-size: 19px; font-weight: 700; color: #15803D; }
+    .found-tray { display: flex; gap: 10px; font-size: 32px; align-items: center; }
+
+    /* Win Modal */
+    #win-modal {
+      display: none; position: fixed; inset: 0; z-index: 80;
+      background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(5px);
+      align-items: center; justify-content: center;
+    }
+    .win-card {
+      background: #FFF; border: 6px solid #22C55E; border-radius: 40px;
+      padding: 34px 54px; text-align: center; display: flex; flex-direction: column;
+      align-items: center; gap: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+    .next-btn {
+      background: #22C55E; color: #FFF; border: none; border-radius: 99px;
+      padding: 14px 40px; font-size: 26px; font-weight: 700; font-family: inherit; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="safari-stage">
+    <header>
+      <a href="index.html" class="nav-btn">🏠 Back</a>
+
+      <div class="size-bar">
+        <button class="size-btn" data-pairs="2">🐣 4 Cards</button>
+        <button class="size-btn" data-pairs="3">🦁 6 Cards</button>
+        <button class="size-btn" data-pairs="4">🐘 8 Cards</button>
+        <button class="size-btn" data-pairs="6">🦒 12 Cards</button>
+        <button class="size-btn" data-pairs="8">👑 16 Cards</button>
+      </div>
+
+      <button class="peek-btn" id="peek-btn">🔭 Safari Peek</button>
+    </header>
+
+    <main class="board-wrap">
+      <div class="card-grid" id="card-grid"></div>
+    </main>
+
+    <footer>
+      <div class="tray-label" id="status-text">🦒 Spot the matching animals!</div>
+      <div class="found-tray" id="found-tray"></div>
+    </footer>
+  </div>
+
+  <div id="win-modal">
+    <div class="win-card">
+      <div style="font-size:86px;" id="win-emojis">🦁🐘🦒</div>
+      <div style="font-size:44px;font-weight:700;color:#15803D;">SAFARI CHAMPION!</div>
+      <div style="font-size:22px;color:#475569;" id="win-sub">You found every animal pair!</div>
+      <button class="next-btn" id="next-btn">🚙 Next Safari Level!</button>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    const ANIMALS = [
+      { id: 'doggie',   emoji: '🐶', name: 'Doggie',   pitch: 660 },
+      { id: 'dragon',   emoji: '🐉', name: 'Sparky',   pitch: 520 },
+      { id: 'lion',     emoji: '🦁', name: 'Lion',     pitch: 240 },
+      { id: 'elephant', emoji: '🐘', name: 'Elephant', pitch: 190 },
+      { id: 'giraffe',  emoji: '🦒', name: 'Giraffe',  pitch: 440 },
+      { id: 'monkey',   emoji: '🐵', name: 'Monkey',   pitch: 720 },
+      { id: 'zebra',    emoji: '🦓', name: 'Zebra',    pitch: 490 },
+      { id: 'hippo',    emoji: '🦛', name: 'Hippo',    pitch: 210 },
+      { id: 'tiger',    emoji: '🐯', name: 'Tiger',    pitch: 280 },
+      { id: 'frog',     emoji: '🐸', name: 'Frog',     pitch: 600 },
+      { id: 'unicorn',  emoji: '🦄', name: 'Unicorn',  pitch: 780 },
+      { id: 'trex',     emoji: '🦖', name: 'T-Rex',    pitch: 175 }
+    ];
+
+    const progression = isEmma ? [2, 3, 4, 6] : [3, 4, 6, 8];
+    let levelStep = 0;
+    let numPairs = progression[0];
+    let cards = [];
+    let flippedCards = [];
+    let matchedCount = 0;
+    let lockBoard = false;
+    let audioCtx = null;
+
+    // 1. Pixel Tablet Viewport Stabilizer
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
+
+    // 2. Audio & Voice Synthesis
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(text) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.95; u.pitch = 1.1;
+      window.speechSynthesis.speak(u);
+    }
+
+    function playTone(f1, f2, dur = 0.15, type = 'triangle', vol = 0.24) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f1, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + dur);
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function updateSizeButtons() {
+      document.querySelectorAll('.size-btn').forEach(btn => {
+        btn.classList.toggle('active', Number(btn.dataset.pairs) === numPairs);
+      });
+    }
+
+    document.querySelectorAll('.size-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        numPairs = Number(btn.dataset.pairs);
+        startRound();
+      };
+    });
+
+    function startRound() {
+      syncViewport();
+      updateSizeButtons();
+      flippedCards = [];
+      matchedCount = 0;
+      lockBoard = true;
+      document.getElementById('found-tray').innerHTML = '';
+
+      // Always include their favorite buddy (Doggie or Sparky) plus random safari animals!
+      const favorite = isEmma ? ANIMALS[0] : ANIMALS[1];
+      const others = shuffle(ANIMALS.filter(a => a.id !== favorite.id)).slice(0, numPairs - 1);
+      const chosen = [favorite, ...others];
+      const deck = shuffle([...chosen, ...chosen]);
+
+      const grid = document.getElementById('card-grid');
+      grid.innerHTML = '';
+
+      // Optimal rows x cols layout for landscape tablet
+      const cols = numPairs === 2 ? 2 : (numPairs === 3 ? 3 : 4);
+      const rows = Math.ceil((numPairs * 2) / cols);
+      grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+
+      cards = deck.map((animal, idx) => {
+        const el = document.createElement('div');
+        el.className = 'safari-card flipped'; // Start face-up for a 1.8s camera peek!
+        el.innerHTML = `
+          <div class="card-face card-back"></div>
+          <div class="card-face card-front">
+            <div class="animal-emoji">${animal.emoji}</div>
+            <div class="animal-name">${animal.name}</div>
+          </div>
+        `;
+        const cardObj = { el, animal, idx, matched: false };
+        el.onpointerdown = () => handleCardTap(cardObj);
+        grid.appendChild(el);
+        return cardObj;
+      });
+
+      document.getElementById('status-text').textContent = '📸 Quick Safari Peek! Remember where they are...';
+      setTimeout(() => {
+        cards.forEach(c => c.el.classList.remove('flipped'));
+        lockBoard = false;
+        document.getElementById('status-text').textContent = `🦒 Find ${numPairs} Matching Pairs!`;
+      }, 1700);
+    }
+
+    function handleCardTap(card) {
+      if (lockBoard || card.matched || flippedCards.includes(card)) return;
+
+      card.el.classList.add('flipped');
+      flippedCards.push(card);
+      playTone(card.animal.pitch, card.animal.pitch * 1.25, 0.14, 'triangle', 0.25);
+
+      if (flippedCards.length === 1) {
+        speak(card.animal.name);
+        return;
+      }
+
+      // 2 cards flipped — check for match!
+      lockBoard = true;
+      const [c1, c2] = flippedCards;
+
+      if (c1.animal.id === c2.animal.id) {
+        // MATCH!
+        setTimeout(() => {
+          c1.matched = true;
+          c2.matched = true;
+          c1.el.classList.add('matched');
+          c2.el.classList.add('matched');
+          flippedCards = [];
+          matchedCount++;
+          lockBoard = false;
+
+          playTone(523.25, 1046.5, 0.28, 'triangle', 0.32);
+          speak(c1.animal.name);
+
+          const span = document.createElement('span');
+          span.textContent = c1.animal.emoji;
+          document.getElementById('found-tray').appendChild(span);
+
+          if (matchedCount >= numPairs) {
+            setTimeout(handleWin, 550);
+          }
+        }, 280);
+      } else {
+        // Not a match — pause briefly so kid can memorize both, then flip back
+        setTimeout(() => {
+          playTone(240, 180, 0.18, 'sine', 0.18);
+          c1.el.classList.remove('flipped');
+          c2.el.classList.remove('flipped');
+          flippedCards = [];
+          lockBoard = false;
+        }, 950);
+      }
+    }
+
+    // Binocular Peek Helper
+    document.getElementById('peek-btn').onpointerdown = () => {
+      if (lockBoard) return;
+      const unmatched = cards.filter(c => !c.matched && !flippedCards.includes(c));
+      if (unmatched.length < 2) return;
+      const targetId = unmatched[0].animal.id;
+      const pair = unmatched.filter(c => c.animal.id === targetId);
+      playTone(587, 880, 0.2, 'sine', 0.25);
+      pair.forEach(c => {
+        c.el.classList.add('flipped');
+        setTimeout(() => {
+          if (!c.matched && !flippedCards.includes(c)) c.el.classList.remove('flipped');
+        }, 1100);
+      });
+    };
+
+    function handleWin() {
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+        setTimeout(() => playTone(f, f * 1.02, 0.28, 'triangle', 0.3), i * 110);
+      });
+      document.getElementById('win-modal').style.display = 'flex';
+      speak('Safari champion!');
+    }
+
+    document.getElementById('next-btn').onclick = () => {
+      document.getElementById('win-modal').style.display = 'none';
+      levelStep = (levelStep + 1) % progression.length;
+      numPairs = progression[levelStep];
+      startRound();
+    };
+
+    startRound();
+  </script>
+</body>
+</html>
