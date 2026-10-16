@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Laser Letter Racer!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --app-w: 100vw; --app-h: 100dvh; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
+      font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+      background: radial-gradient(circle at 50% 35%, #1E293B 0%, #0F172A 70%, #020617 100%);
+      color: #fff; touch-action: none;
+    }
+    #app-stage {
+      position: fixed; inset: 0; width: var(--app-w); height: var(--app-h);
+      display: grid; grid-template-rows: 74px 1fr 84px; padding: 12px 18px; gap: 10px;
+    }
+    body.overheat-shake { animation: heatShake 0.14s infinite; }
+    body.blowout-flash::after {
+      content: ''; position: fixed; inset: 0; background: rgba(239, 68, 68, 0.55);
+      pointer-events: none; z-index: 70;
+    }
+    @keyframes heatShake {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(-4px, 3px); }
+      75% { transform: translate(4px, -3px); }
+    }
+
+    /* Top Header: Back, Mode Picker, Overheat Thermometer */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(15, 23, 42, 0.92); border: 3px solid #38BDF8;
+      border-radius: 26px; padding: 8px 16px; gap: 12px; z-index: 20;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    }
+    .nav-btn, .mode-btn {
+      font-family: inherit; font-weight: 700; font-size: 18px;
+      background: #1E293B; color: #F8FAFC; border: 3px solid #475569;
+      padding: 8px 16px; border-radius: 20px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap;
+    }
+    .mode-bar { display: flex; gap: 8px; overflow-x: auto; align-items: center; }
+    .mode-btn.active {
+      background: #FBBF24; color: #0F172A; border-color: #FEF08A;
+      transform: scale(1.05); box-shadow: 0 4px 14px rgba(251,191,36,0.4);
+    }
+
+    /* Overheat Gauge */
+    .heat-box {
+      display: flex; align-items: center; gap: 10px;
+      background: #020617; border: 3px solid #334155; border-radius: 20px;
+      padding: 6px 14px; min-width: 215px;
+    }
+    .heat-label { font-size: 14px; font-weight: 700; color: #94A3B8; white-space: nowrap; }
+    .heat-track {
+      flex: 1; height: 18px; background: #1E293B; border-radius: 99px;
+      overflow: hidden; border: 2px solid #475569;
+    }
+    .heat-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #06D6A0 0%, #FBBF24 55%, #EF4444 100%);
+      transition: width 0.08s linear;
+    }
+
+    /* Center Tracing Arena */
+    .arena {
+      position: relative; width: 100%; height: 100%;
+      background: radial-gradient(circle at 50% 50%, #1E293B 0%, #090D16 100%);
+      border-radius: 30px; border: 4px solid #38BDF8; overflow: hidden;
+      box-shadow: inset 0 0 40px rgba(56, 189, 248, 0.15), 0 12px 30px rgba(0,0,0,0.5);
+    }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .coach-banner {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92); border: 3px solid #FBBF24;
+      color: #FEF08A; padding: 8px 24px; border-radius: 99px;
+      font-size: 22px; font-weight: 700; pointer-events: none; z-index: 10;
+      white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+    }
+
+    /* Bottom Word / Alphabet Progress Bar */
+    footer {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: rgba(15, 23, 42, 0.92); border: 3px solid #38BDF8;
+      border-radius: 26px; padding: 8px 18px; overflow-x: auto; z-index: 20;
+    }
+    .letter-tile {
+      min-width: 58px; height: 60px; border-radius: 18px;
+      background: #1E293B; border: 3px solid #475569; color: #94A3B8;
+      font-size: 32px; font-weight: 700; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; transition: 0.2s; padding: 0 12px;
+    }
+    .letter-tile.active {
+      background: #38BDF8; color: #0F172A; border-color: #FFF;
+      transform: scale(1.14); box-shadow: 0 0 18px rgba(56,189,248,0.7);
+    }
+    .letter-tile.done {
+      background: #06D6A0; color: #0F172A; border-color: #FFF;
+    }
+
+    /* Celebration Modal */
+    #win-modal {
+      display: none; position: fixed; inset: 0; z-index: 80;
+      background: rgba(2, 6, 23, 0.82); backdrop-filter: blur(5px);
+      align-items: center; justify-content: center;
+    }
+    .win-card {
+      background: #0F172A; border: 5px solid #FBBF24; border-radius: 38px;
+      padding: 34px 54px; text-align: center; display: flex; flex-direction: column;
+      align-items: center; gap: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+    }
+    .next-btn {
+      background: #06D6A0; color: #0F172A; border: none; border-radius: 99px;
+      padding: 14px 38px; font-size: 26px; font-weight: 700; font-family: inherit; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-stage">
+    <header>
+      <a href="index.html" class="nav-btn">🏠 Back</a>
+
+      <div class="mode-bar" id="mode-bar">
+        <button class="mode-btn active" data-word="NAME" id="name-btn">🦖 WYATT</button>
+        <button class="mode-btn" data-word="SIBLING" id="sib-btn">🦄 EMMA</button>
+        <button class="mode-btn" data-word="DOG">🐶 DOG</button>
+        <button class="mode-btn" data-word="CAT">🐱 CAT</button>
+        <button class="mode-btn" data-word="MOM">❤️ MOM</button>
+        <button class="mode-btn" data-word="DAD">⭐ DAD</button>
+        <button class="mode-btn" data-word="AZ">🔤 A-Z Pick</button>
+      </div>
+
+      <div class="heat-box">
+        <span class="heat-label" id="heat-icon">🌡️ LASER</span>
+        <div class="heat-track"><div class="heat-fill" id="heat-fill"></div></div>
+      </div>
+    </header>
+
+    <main class="arena">
+      <div class="coach-banner" id="coach-banner">Start at the TOP Green Star!</div>
+      <canvas id="trace-canvas"></canvas>
+    </main>
+
+    <footer id="letter-bar"></footer>
+  </div>
+
+  <div id="win-modal">
+    <div class="win-card">
+      <div style="font-size:84px;" id="win-emoji">🏆✨</div>
+      <div style="font-size:48px;font-weight:700;color:#FDE047;" id="win-title">AWESOME WRITING!</div>
+      <div style="font-size:22px;color:#CBD5E1;" id="win-sub">You wrote every letter starting from the top!</div>
+      <button class="next-btn" id="next-word-btn">🚀 Trace Next Word!</button>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    const primaryName = isEmma ? 'EMMA' : 'WYATT';
+    const siblingName = isEmma ? 'WYATT' : 'EMMA';
+    document.getElementById('name-btn').textContent = (isEmma ? '🦄 ' : '🦖 ') + primaryName;
+    document.getElementById('sib-btn').textContent = (isEmma ? '🦖 ' : '🦄 ') + siblingName;
+
+    // Occupational-Therapy Top-Down Stroke Definitions (Normalized 0..100 Space)
+    // Every single vertical/diagonal stroke starts at the TOP (y=12) and goes DOWN (y=88)!
+    const STROKES = {
+      A: [ [[50,12],[20,88]], [[50,12],[80,88]], [[30,58],[70,58]] ],
+      B: [ [[26,12],[26,88]], [[26,12],[65,18],[72,34],[62,48],[26,50]], [[26,50],[68,52],[75,70],[65,86],[26,88]] ],
+      C: [ [[74,24],[50,12],[26,26],[22,50],[26,74],[50,88],[74,76]] ],
+      D: [ [[26,12],[26,88]], [[26,12],[62,16],[78,36],[78,64],[62,84],[26,88]] ],
+      E: [ [[26,12],[26,88]], [[26,12],[74,12]], [[26,48],[66,48]], [[26,88],[74,88]] ],
+      F: [ [[26,12],[26,88]], [[26,12],[74,12]], [[26,48],[66,48]] ],
+      G: [ [[74,24],[50,12],[26,26],[22,50],[26,74],[50,88],[74,76],[74,52],[50,52]] ],
+      H: [ [[24,12],[24,88]], [[76,12],[76,88]], [[24,48],[76,48]] ],
+      I: [ [[50,12],[50,88]], [[28,12],[72,12]], [[28,88],[72,88]] ],
+      J: [ [[62,12],[62,72],[48,88],[30,84],[24,70]] ],
+      K: [ [[26,12],[26,88]], [[74,12],[26,50]], [[38,40],[76,88]] ],
+      L: [ [[28,12],[28,88]], [[28,88],[74,88]] ],
+      M: [ [[18,12],[18,88]], [[18,12],[50,56]], [[82,12],[50,56]], [[82,12],[82,88]] ],
+      N: [ [[24,12],[24,88]], [[24,12],[76,88]], [[76,12],[76,88]] ],
+      O: [ [[50,12],[24,26],[20,50],[24,74],[50,88],[76,74],[80,50],[76,26],[50,12]] ],
+      P: [ [[26,12],[26,88]], [[26,12],[66,16],[76,32],[66,48],[26,50]] ],
+      Q: [ [[50,12],[24,26],[20,50],[24,74],[50,88],[76,74],[80,50],[76,26],[50,12]], [[56,62],[80,88]] ],
+      R: [ [[26,12],[26,88]], [[26,12],[66,16],[76,32],[66,48],[26,50]], [[48,48],[76,88]] ],
+      S: [ [[72,22],[50,12],[28,22],[30,42],[70,58],[72,78],[50,88],[28,78]] ],
+      T: [ [[50,12],[50,88]], [[18,12],[82,12]] ],
+      U: [ [[24,12],[24,68],[38,86],[62,86],[76,68],[76,12]] ],
+      V: [ [[20,12],[50,88]], [[80,12],[50,88]] ],
+      W: [ [[14,12],[32,88]], [[32,88],[50,30]], [[50,30],[68,88]], [[68,88],[86,12]] ],
+      X: [ [[22,12],[78,88]], [[78,12],[22,88]] ],
+      Y: [ [[22,12],[50,50]], [[78,12],[50,50]], [[50,50],[50,88]] ],
+      Z: [ [[22,12],[78,12]], [[78,12],[22,88]], [[22,88],[78,88]] ]
+    };
+
+    const CW = 900, CH = 500;
+    const canvas = document.getElementById('trace-canvas');
+    canvas.width = CW; canvas.height = CH;
+    const ctx = canvas.getContext('2d');
+
+    let currentWord = primaryName.split('');
+    let letterIdx = 0;
+    let strokeIdx = 0;
+    let densePath = [];
+    let progressIdx = 0;
+    let isTracing = false;
+    let heat = 0;
+    let isOffTrack = false;
+    let pointerPos = { x: 0, y: 0 };
+    let sparks = [];
+    let tick = 0;
+    let audioCtx = null;
+
+    // 1. Pixel Tablet Viewport Fix
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
+
+    // 2. Audio & Voice Coaching
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.94; u.pitch = 1.1;
+        window.speechSynthesis.speak(u);
+      }
+    }
+
+    function playTone(f1, f2, dur = 0.14, type = 'triangle', vol = 0.22) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f1, now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+      gain.gain.setValueAtTime(vol, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + dur);
+    }
+
+    // 3. Build Dense Waypoints for Current Stroke (So Progress Can Only Move Forward!)
+    function toCanvasXY(pt) {
+      // Center the letter nicely in a 400x360 box in the middle of the 900x500 canvas
+      return {
+        x: 250 + (pt[0] / 100) * 400,
+        y: 78 + (pt[1] / 100) * 370
+      };
+    }
+
+    function buildDenseStroke(rawPoints) {
+      const out = [];
+      for (let i = 0; i < rawPoints.length - 1; i++) {
+        const p1 = toCanvasXY(rawPoints[i]);
+        const p2 = toCanvasXY(rawPoints[i + 1]);
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const steps = Math.max(8, Math.ceil(dist / 6));
+        for (let s = 0; s < steps; s++) {
+          const t = s / steps;
+          out.push({ x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t });
+        }
+      }
+      out.push(toCanvasXY(rawPoints[rawPoints.length - 1]));
+      return out;
+    }
+
+    function setHeat(val) {
+      heat = Math.max(0, Math.min(100, val));
+      document.getElementById('heat-fill').style.width = `${heat}%`;
+      document.getElementById('heat-icon').textContent = heat > 60 ? '🔥 HOT!' : '🌡️ LASER';
+      document.body.classList.toggle('overheat-shake', heat > 40 && isTracing);
+    }
+
+    function renderLetterBar() {
+      const bar = document.getElementById('letter-bar');
+      bar.innerHTML = '';
+      currentWord.forEach((ch, idx) => {
+        const tile = document.createElement('div');
+        tile.className = 'letter-tile' + (idx === letterIdx ? ' active' : (idx < letterIdx ? ' done' : ''));
+        tile.textContent = ch;
+        tile.onpointerdown = () => {
+          letterIdx = idx;
+          loadLetter();
+        };
+        bar.appendChild(tile);
+      });
+    }
+
+    function loadLetter() {
+      strokeIdx = 0;
+      progressIdx = 0;
+      isTracing = false;
+      setHeat(0);
+      const ch = currentWord[letterIdx];
+      const strokes = STROKES[ch] || STROKES.A;
+      densePath = buildDenseStroke(strokes[0]);
+      renderLetterBar();
+      const startHint = ch === 'W' ? 'Trace W starting at the TOP LEFT star!' : `Trace the letter ${ch}! Start at the green star!`;
+      document.getElementById('coach-banner').textContent = `Letter ${ch} • Stroke 1 of ${strokes.length} — Start at the Green Star!`;
+      speak(startHint);
+    }
+
+    function loadStroke(sIdx) {
+      const ch = currentWord[letterIdx];
+      const strokes = STROKES[ch] || STROKES.A;
+      strokeIdx = sIdx;
+      progressIdx = 0;
+      isTracing = false;
+      setHeat(0);
+      densePath = buildDenseStroke(strokes[strokeIdx]);
+      document.getElementById('coach-banner').textContent = `Letter ${ch} • Stroke ${strokeIdx + 1} of ${strokes.length} — Follow the Arrows!`;
+    }
+
+    // 4. Mode Picker Buttons
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const w = btn.dataset.word;
+        if (w === 'NAME') currentWord = primaryName.split('');
+        else if (w === 'SIBLING') currentWord = siblingName.split('');
+        else if (w === 'AZ') currentWord = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+        else currentWord = w.split('');
+        letterIdx = 0;
+        loadLetter();
+      };
+    });
+
+    // 5. Pointer Tracking, Directional Enforcement & Overheat Check
+    function getCanvasPt(e) {
+      const r = canvas.getBoundingClientRect();
+      return {
+        x: ((e.clientX - r.left) / r.width) * CW,
+        y: ((e.clientY - r.top) / r.height) * CH
+      };
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      const pt = getCanvasPt(e);
+      pointerPos = pt;
+
+      const targetPt = densePath[progressIdx];
+      const dist = Math.hypot(pt.x - targetPt.x, pt.y - targetPt.y);
+
+      if (dist <= 58) {
+        isTracing = true;
+        isOffTrack = false;
+        playTone(440, 580, 0.12, 'sine', 0.2);
+      } else {
+        // Tried to start at the wrong end (e.g. bottom of W)!
+        playTone(190, 140, 0.25, 'sawtooth', 0.25);
+        document.getElementById('coach-banner').textContent = '⬆️ Oops! Start at the glowing GREEN star!';
+        speak('Start at the green star!');
+        for (let i = 0; i < 12; i++) {
+          sparks.push({ x: targetPt.x, y: targetPt.y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, color: '#06D6A0', life: 25 });
+        }
+      }
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!isTracing) return;
+      const pt = getCanvasPt(e);
+      pointerPos = pt;
+
+      // Only allow advancing forward within a small window ahead of current progressIdx
+      let bestIdx = progressIdx;
+      let minDist = Infinity;
+      const maxLookAhead = Math.min(densePath.length - 1, progressIdx + 12);
+
+      for (let i = progressIdx; i <= maxLookAhead; i++) {
+        const d = Math.hypot(pt.x - densePath[i].x, pt.y - densePath[i].y);
+        if (d < minDist) {
+          minDist = d;
+          bestIdx = i;
+        }
+      }
+
+      if (minDist <= 50) {
+        // On Track! Cool down laser & advance
+        isOffTrack = false;
+        setHeat(heat - 2.5);
+        if (bestIdx > progressIdx) {
+          progressIdx = bestIdx;
+          if (progressIdx % 5 === 0) {
+            const p = progressIdx / densePath.length;
+            playTone(360 + p * 380, 400 + p * 380, 0.07, 'sine', 0.14);
+          }
+          sparks.push({
+            x: densePath[progressIdx].x,
+            y: densePath[progressIdx].y,
+            vx: (Math.random() - 0.5) * 3,
+            vy: (Math.random() - 0.5) * 3,
+            color: '#06D6A0',
+            life: 18
+          });
+        }
+
+        // Check if stroke reached the finish flag!
+        if (progressIdx >= densePath.length - 2) {
+          completeCurrentStroke();
+        }
+      } else {
+        // Off Track! Overheating!
+        isOffTrack = true;
+        setHeat(heat + 3.6);
+        if (tick % 4 === 0) playTone(145, 110, 0.08, 'sawtooth', 0.2);
+        sparks.push({
+          x: pt.x, y: pt.y,
+          vx: (Math.random() - 0.5) * 7, vy: (Math.random() - 0.5) * 7,
+          color: '#EF4444', life: 20
+        });
+
+        if (heat >= 100) {
+          triggerOverheatBlowout();
+        }
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      isTracing = false;
+      isOffTrack = false;
+      document.body.classList.remove('overheat-shake');
+    });
+
+    function triggerOverheatBlowout() {
+      isTracing = false;
+      isOffTrack = false;
+      progressIdx = 0;
+      setHeat(0);
+      playTone(130, 55, 0.45, 'sawtooth', 0.35);
+      document.body.classList.add('blowout-flash');
+      setTimeout(() => document.body.classList.remove('blowout-flash'), 400);
+      document.getElementById('coach-banner').textContent = '💥 Laser Overheated! Stay inside the glowing track!';
+      speak('Laser overheated! Stay on the track and try again!');
+    }
+
+    function completeCurrentStroke() {
+      isTracing = false;
+      setHeat(0);
+      playTone(523.25, 1046.5, 0.25, 'triangle', 0.32);
+
+      const ch = currentWord[letterIdx];
+      const strokes = STROKES[ch] || STROKES.A;
+      if (strokeIdx + 1 < strokes.length) {
+        loadStroke(strokeIdx + 1);
+      } else {
+        // Finished all strokes of this letter!
+        speak(ch);
+        if (letterIdx + 1 < currentWord.length) {
+          setTimeout(() => {
+            letterIdx++;
+            loadLetter();
+          }, 650);
+        } else {
+          setTimeout(handleWordWin, 650);
+        }
+      }
+    }
+
+    function handleWordWin() {
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+        setTimeout(() => playTone(f, f * 1.02, 0.28, 'triangle', 0.3), i * 110);
+      });
+      const wordStr = currentWord.join('');
+      document.getElementById('win-title').textContent = wordStr.length <= 6 ? `${wordStr}!` : 'GREAT JOB!';
+      document.getElementById('win-modal').style.display = 'flex';
+      speak(`Awesome writing! You traced ${wordStr}!`);
+    }
+
+    document.getElementById('next-word-btn').onclick = () => {
+      document.getElementById('win-modal').style.display = 'none';
+      letterIdx = 0;
+      loadLetter();
+    };
+
+    // 6. 60 FPS Canvas Renderer (Racetrack, Arrows, Completed Strokes, & Pilot Pod)
+    function drawStrokePolyline(pts, width, color, dash = []) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      pts.forEach((p, idx) => {
+        const c = toCanvasXY(p);
+        if (idx === 0) ctx.moveTo(c.x, c.y);
+        else ctx.lineTo(c.x, c.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function render() {
+      tick++;
+      if (!isTracing && heat > 0) setHeat(heat - 0.8);
+
+      ctx.clearRect(0, 0, CW, CH);
+
+      // Subtle handwriting guideline rows (Top line, Dotted midline, Baseline)
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([]);
+      [122, 404].forEach(y => { ctx.beginPath(); ctx.moveTo(140, y); ctx.lineTo(760, y); ctx.stroke(); });
+      ctx.setLineDash([12, 12]);
+      ctx.beginPath(); ctx.moveTo(140, 263); ctx.lineTo(760, y = 263); ctx.stroke();
+      ctx.setLineDash([]);
+
+      const ch = currentWord[letterIdx];
+      const strokes = STROKES[ch] || STROKES.A;
+
+      // 1. Draw all ghost strokes of the full letter
+      strokes.forEach((s, idx) => {
+        drawStrokePolyline(s, 56, 'rgba(30, 41, 59, 0.85)');
+        drawStrokePolyline(s, 48, idx < strokeIdx ? '#06D6A0' : 'rgba(51, 65, 85, 0.7)');
+      });
+
+      // 2. Highlight active stroke track + animated center guide dashes
+      const activeRaw = strokes[strokeIdx];
+      drawStrokePolyline(activeRaw, 52, isOffTrack ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.28)');
+      ctx.save();
+      ctx.lineDashOffset = -(tick * 1.2);
+      drawStrokePolyline(activeRaw, 6, 'rgba(253, 224, 71, 0.65)', [14, 18]);
+      ctx.restore();
+
+      // 3. Draw traced green laser progress along current stroke
+      if (progressIdx > 0 && densePath.length > 0) {
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 44;
+        ctx.strokeStyle = '#06D6A0';
+        ctx.shadowColor = '#06D6A0';
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        for (let i = 0; i <= progressIdx; i++) {
+          if (i === 0) ctx.moveTo(densePath[i].x, densePath[i].y);
+          else ctx.lineTo(densePath[i].x, densePath[i].y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 4. Draw Finish Flag at End of Active Stroke
+      if (densePath.length > 1) {
+        const endPt = densePath[densePath.length - 1];
+        ctx.beginPath();
+        ctx.arc(endPt.x, endPt.y, 24, 0, Math.PI * 2);
+        ctx.fillStyle = '#F59E0B';
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#FFF';
+        ctx.stroke();
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🏁', endPt.x, endPt.y);
+
+        // 5. Draw Current Laser Pod / Pulsing Green Start Orb
+        const curPt = densePath[progressIdx];
+        const pulse = 28 + Math.sin(tick * 0.12) * 4;
+        ctx.beginPath();
+        ctx.arc(curPt.x, curPt.y, pulse, 0, Math.PI * 2);
+        ctx.fillStyle = isOffTrack ? '#EF4444' : '#06D6A0';
+        ctx.fill();
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.stroke();
+
+        ctx.font = '30px sans-serif';
+        ctx.fillText(progressIdx === 0 ? '⭐' : (isEmma ? '🐶' : '🐉'), curPt.x, curPt.y);
+      }
+
+      // 6. Draw Red Overheat Warning Tether if Finger Veers Off-Track
+      if (isTracing && isOffTrack && densePath[progressIdx]) {
+        const curPt = densePath[progressIdx];
+        ctx.save();
+        ctx.strokeStyle = '#EF4444';
+        ctx.lineWidth = 5;
+        ctx.setLineDash([8, 8]);
+        ctx.beginPath();
+        ctx.moveTo(curPt.x, curPt.y);
+        ctx.lineTo(pointerPos.x, pointerPos.y);
+        ctx.stroke();
+        ctx.font = '34px sans-serif';
+        ctx.fillText('🔥', pointerPos.x, pointerPos.y);
+        ctx.restore();
+      }
+
+      // 7. Draw Sparks
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const sp = sparks[i];
+        sp.x += sp.vx; sp.y += sp.vy; sp.life--;
+        if (sp.life <= 0) { sparks.splice(i, 1); continue; }
+        ctx.fillStyle = sp.color;
+        ctx.fillRect(sp.x, sp.y, 5, 5);
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    loadLetter();
+    render();
+  </script>
+</body>
+</html>

@@ -60,12 +60,12 @@
     }
 
     main {
-      flex: 1; padding: 10px 48px 36px;
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
-      align-items: stretch; max-width: 1280px; width: 100%; margin: 0 auto;
+      flex: 1; padding: 10px 36px 36px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
+      align-items: stretch; max-width: 1320px; width: 100%; margin: 0 auto;
     }
     .card {
-      background: #fff; border-radius: 28px; padding: 20px;
+      background: #fff; border-radius: 28px; padding: 18px;
       display: flex; flex-direction: column; justify-content: space-between;
       box-shadow: 0 10px 24px rgba(0,0,0,0.08); border: 5px solid #fff;
       cursor: pointer; transition: transform 0.15s; position: relative; overflow: hidden;
@@ -85,23 +85,23 @@
 
     .card-art {
       flex: 1; border-radius: 20px; display: flex; align-items: center;
-      justify-content: center; font-size: 96px; margin-bottom: 16px;
+      justify-content: center; font-size: 88px; margin-bottom: 14px;
       box-shadow: inset 0 -8px 0 rgba(0,0,0,0.1);
     }
     .badge {
-      position: absolute; top: 32px; right: 32px; background: rgba(255,255,255,0.92);
-      padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 700; color: #1D3557;
+      position: absolute; top: 28px; right: 26px; background: rgba(255,255,255,0.92);
+      padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; color: #1D3557;
     }
     .status-pill {
-      position: absolute; top: 32px; left: 32px; background: #06D6A0; color: #fff;
-      padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 700;
+      position: absolute; top: 28px; left: 26px; background: #06D6A0; color: #fff;
+      padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 700;
       box-shadow: 0 4px 10px rgba(6,214,160,0.4);
     }
     .status-pill.soon {
       background: #6C757D; box-shadow: none;
     }
-    .card-title { font-size: 24px; font-weight: 700; color: #1D3557; margin-bottom: 4px; }
-    .card-sub { font-size: 16px; color: #6C757D; }
+    .card-title { font-size: 22px; font-weight: 700; color: #1D3557; margin-bottom: 4px; }
+    .card-sub { font-size: 15px; color: #6C757D; }
 
     .parent-lock {
       position: fixed; bottom: 16px; right: 24px; background: rgba(255,255,255,0.85);
@@ -152,6 +152,7 @@
   <script>
     const items = [
       { type: 'play', icon: '🎈', bg: '#FF6B6B', badge: 'Letters & Words', title: 'Balloon Letter Pop', sub: 'Spot & pop the letters to spell words!', url: 'balloon-pop.html' },
+      { type: 'play', icon: '✏️', bg: '#06D6A0', badge: 'Handwriting & Tracing', title: 'Laser Letter Racer', sub: 'Trace letters from the top—don\'t overheat!', url: 'letter-trace.html' },
       { type: 'play', icon: '🚀', bg: '#FFD166', badge: 'Numbers & Counting', title: 'Rocket Count 1-20', sub: 'Count stars & blast off into space!', url: 'rocket-count.html' },
       { type: 'play', icon: '🦁', bg: '#F15BB5', badge: 'Memory & Logic', title: 'Animal Match Safari', sub: 'Flip cards to find pairs' },
       { type: 'read', icon: '🌱', bg: '#4ECDC4', badge: 'Living eBook', title: 'Wyatt, Emma & the Beanstalk', sub: 'Pack gear & climb to the castle!', url: 'beanstalk.html' },
@@ -168,6 +169,7 @@
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
       const filtered = items.filter(i => i.type === currentTab);
+      grid.style.gridTemplateColumns = `repeat(${Math.max(3, filtered.length)}, 1fr)`;
       filtered.forEach(item => {
         const isReady = Boolean(item.url);
         const card = document.createElement('div');
