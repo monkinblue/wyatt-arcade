@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Classical Piano Arcade Rush!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --app-w: 100vw; --app-h: 100dvh; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
+      font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+      background: radial-gradient(circle at 50% 20%, #311068 0%, #0F172A 60%, #020617 100%);
+      color: #FFF; touch-action: none;
+    }
+    #arcade-stage {
+      position: fixed; inset: 0; width: var(--app-w); height: var(--app-h);
+      display: grid; grid-template-rows: 72px 1fr; padding: 10px 16px 14px; gap: 10px;
+    }
+    body.fever-glow #cabinet-wrap {
+      border-color: #FDE047;
+      box-shadow: 0 0 36px rgba(253, 224, 71, 0.65), inset 0 0 40px rgba(244, 114, 182, 0.3);
+    }
+    body.penalty-shake { animation: penShake 0.12s infinite; }
+    @keyframes penShake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    /* Top Arcade HUD */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(15, 23, 42, 0.94); border: 3px solid #38BDF8;
+      border-radius: 24px; padding: 8px 16px; gap: 10px; z-index: 30;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .nav-btn, .shuffle-btn, .song-select {
+      font-family: inherit; font-weight: 700; font-size: 16px;
+      background: #1E293B; color: #F8FAFC; border: 3px solid #475569;
+      padding: 8px 14px; border-radius: 18px; cursor: pointer;
+      display: flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap;
+    }
+    .shuffle-btn {
+      background: linear-gradient(135deg, #EC4899, #8B5CF6);
+      border-color: #F9A8D4; color: #FFF;
+    }
+    .shuffle-btn:active, .nav-btn:active { transform: scale(0.95); }
+    .song-select {
+      background: #0F172A; border-color: #A855F7; color: #FDE047;
+      font-size: 16px; outline: none; max-width: 250px;
+    }
+
+    .hud-stats { display: flex; align-items: center; gap: 10px; }
+    .stat-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: #020617; border: 3px solid #334155;
+      padding: 6px 14px; border-radius: 18px; font-weight: 700; font-size: 19px;
+      white-space: nowrap;
+    }
+    .stat-pill.timer { border-color: #38BDF8; color: #38BDF8; min-width: 112px; justify-content: center; }
+    .stat-pill.timer.low { border-color: #EF4444; color: #EF4444; animation: pulsePop 0.4s infinite alternate; }
+    .stat-pill.combo {
+      background: linear-gradient(135deg, #F59E0B, #EF4444);
+      border-color: #FEF08A; color: #FFF; min-width: 98px; justify-content: center;
+      transition: transform 0.12s;
+    }
+    .stat-pill.score {
+      background: linear-gradient(135deg, #06D6A0, #059669);
+      border-color: #A7F3D0; color: #022C22; font-size: 22px; min-width: 135px; justify-content: center;
+      transition: transform 0.12s;
+    }
+    .pop-bump { transform: scale(1.22); }
+    @keyframes pulsePop { from { transform: scale(1); } to { transform: scale(1.08); } }
+
+    /* Center Chuck E. Cheese 4-Lane Cabinet */
+    .stage-container {
+      position: relative; width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center; min-height: 0;
+    }
+    #cabinet-wrap {
+      position: relative; width: 100%; max-width: 920px; height: 100%;
+      background: linear-gradient(180deg, #090D16 0%, #1E1B4B 78%, #0F172A 100%);
+      border-radius: 30px; border: 5px solid #38BDF8; overflow: hidden;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.65), inset 0 0 50px rgba(56, 189, 248, 0.18);
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+    }
+
+    /* Song Banner & Penalty Overlay */
+    .song-banner {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9); border: 2px solid #FDE047;
+      color: #FEF08A; padding: 5px 20px; border-radius: 99px;
+      font-size: 17px; font-weight: 700; pointer-events: none; z-index: 10;
+      white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.45);
+    }
+    #penalty-toast {
+      display: none; position: absolute; top: 42%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(239, 68, 68, 0.95); border: 4px solid #FFF;
+      color: #FFF; padding: 12px 30px; border-radius: 28px;
+      font-size: 30px; font-weight: 700; pointer-events: none; z-index: 25;
+      box-shadow: 0 12px 35px rgba(239, 68, 68, 0.65); white-space: nowrap;
+    }
+
+    /* Jackpot Finale Modal */
+    #jackpot-modal {
+      display: none; position: fixed; inset: 0; z-index: 90;
+      background: rgba(2, 6, 23, 0.86); backdrop-filter: blur(6px);
+      align-items: center; justify-content: center;
+    }
+    .jackpot-card {
+      background: linear-gradient(180deg, #1E1B4B 0%, #0F172A 100%);
+      border: 6px solid #FDE047; border-radius: 38px;
+      padding: 28px 48px; text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      box-shadow: 0 0 60px rgba(253, 224, 71, 0.5);
+    }
+    .play-again-btn {
+      background: linear-gradient(135deg, #06D6A0, #10B981);
+      color: #022C22; border: 4px solid #FFF; border-radius: 99px;
+      padding: 14px 36px; font-size: 25px; font-weight: 700; font-family: inherit;
+      cursor: pointer; box-shadow: 0 8px 24px rgba(6, 214, 160, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div id="arcade-stage">
+    <header>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <a href="index.html" class="nav-btn">🏠 Back</a>
+        <button class="shuffle-btn" id="shuffle-btn">🎲 Random Song</button>
+        <select class="song-select" id="song-select"></select>
+      </div>
+
+      <div class="hud-stats">
+        <div class="stat-pill timer" id="timer-pill">⏱️ <span id="time-val">60.0</span>s</div>
+        <div class="stat-pill combo" id="combo-pill">🔥 <span id="combo-val">1x</span></div>
+        <div class="stat-pill score" id="score-pill">🎟️ <span id="score-val">0</span></div>
+      </div>
+    </header>
+
+    <main class="stage-container">
+      <div id="cabinet-wrap">
+        <div class="song-banner" id="song-banner">🎼 Tap the Glowing Bottom Key to Start!</div>
+        <div id="penalty-toast">❌ OOPS! WAIT! (-1.5s)</div>
+        <canvas id="tiles-canvas"></canvas>
+      </div>
+    </main>
+  </div>
+
+  <div id="jackpot-modal">
+    <div class="jackpot-card">
+      <div style="font-size:74px;" id="jackpot-icon">🏆🎟️✨</div>
+      <div style="font-size:40px;font-weight:700;color:#FDE047;" id="jackpot-title">ARCADE JACKPOT!</div>
+      <div style="font-size:28px;font-weight:700;color:#06D6A0;" id="jackpot-score">0 Points</div>
+      <div style="font-size:19px;color:#CBD5E1;" id="jackpot-best">Best Score: 0</div>
+      <div style="display:flex;gap:14px;margin-top:8px;">
+        <button class="play-again-btn" id="next-random-btn">🎲 Play Next Random Song!</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+    const ROUND_DURATION = isEmma ? 75 : 60;
+    const PENALTY_LOCK_MS = isEmma ? 380 : 480;
+    const PENALTY_TIME_SEC = 1.5;
+
+    // Exact Note Frequency Table
+    const FREQ = {
+      G3: 196.00, A3: 220.00, B3: 246.94,
+      C4: 261.63, Cs4: 277.18, D4: 293.66, Ds4: 311.13, E4: 329.63, F4: 349.23, Fs4: 369.99, G4: 392.00, Gs4: 415.30, A4: 440.00, As4: 466.16, B4: 493.88,
+      C5: 523.25, Cs5: 554.37, D5: 587.33, Ds5: 622.25, E5: 659.25, F5: 698.46, Fs5: 739.99, G5: 783.99, Gs5: 830.61, A5: 880.00, B5: 987.77, C6: 1046.50
+    };
+
+    // 10 Classical Arcade Hits!
+    const CLASSICAL_SONGS = [
+      {
+        id: 'ode',
+        title: '🎼 Ode to Joy (Beethoven)',
+        notes: [
+          'E4','E4','F4','G4', 'G4','F4','E4','D4', 'C4','C4','D4','E4', 'E4','D4','D4',
+          'E4','E4','F4','G4', 'G4','F4','E4','D4', 'C4','C4','D4','E4', 'D4','C4','C4',
+          'D4','D4','E4','C4', 'D4','E4','F4','E4','C4', 'D4','E4','F4','E4','D4', 'C4','D4','G3',
+          'E4','E4','F4','G4', 'G4','F4','E4','D4', 'C4','C4','D4','E4', 'D4','C4','C4'
+        ]
+      },
+      {
+        id: 'elise',
+        title: '🎹 Für Elise (Beethoven)',
+        notes: [
+          'E5','Ds5','E5','Ds5','E5','B4','D5','C5','A4',
+          'C4','E4','A4','B4', 'E4','Gs4','B4','C5',
+          'E4','E5','Ds5','E5','Ds5','E5','B4','D5','C5','A4',
+          'C4','E4','A4','B4', 'E4','C5','B4','A4'
+        ]
+      },
+      {
+        id: 'william',
+        title: '🐎 William Tell Overture (Rossini)',
+        notes: [
+          'D4','D4','D4','G4','B4','B4','D4','D4','D4','G4','B4','C5','B4','A4','G4','Fs4',
+          'D4','D4','D4','G4','B4','B4','D4','D4','D4','B4','D5','C5','B4','A4','G4'
+        ]
+      },
+      {
+        id: 'mountain',
+        title: '👑 Hall of the Mountain King (Grieg)',
+        notes: [
+          'D4','E4','F4','G4','A4','F4','A4', 'Gs4','E4','Gs4', 'G4','Ds4','G4',
+          'D4','E4','F4','G4','A4','F4','A4','D5','C5','A4','F4','A4','C5'
+        ]
+      },
+      {
+        id: 'cancan',
+        title: '💃 The Can-Can (Offenbach)',
+        notes: [
+          'C4','C4','D4','F4','E4','D4','G4','G4','G4','A4','E4','F4','D4','D4','D4','F4','E4','D4',
+          'C5','B4','A4','G4','F4','E4','D4','C4',
+          'C4','C4','D4','F4','E4','D4','G4','G4','G4','A4','E4','F4','D4','G4','E4','C4'
+        ]
+      },
+      {
+        id: 'mozart',
+        title: '🌙 Eine kleine Nachtmusik (Mozart)',
+        notes: [
+          'G4','D4','G4','D4','G4','D4','G4','B4','D5',
+          'C5','A4','C5','A4','C5','A4','Fs4','A4','D4',
+          'G4','G4','B4','A4','G4','G4','Fs4','Fs4','A4','C5','Fs4','A4','G4'
+        ]
+      },
+      {
+        id: 'turkish',
+        title: '🎪 Turkish March (Mozart)',
+        notes: [
+          'B4','A4','Gs4','A4','C5', 'D5','C5','B4','C5','E5',
+          'F5','E5','Ds5','E5','B5','A5','Gs5','A5','B5','A5','Gs5','A5','C6',
+          'A5','C6','B5','A5','G5','A5','B5','A5','G5','Fs5','E5'
+        ]
+      },
+      {
+        id: 'sugar',
+        title: '🧚 Sugar Plum Fairy (Tchaikovsky)',
+        notes: [
+          'G5','E5','G5','Fs5','Ds5','E5','D5','D5','Cs5','D5',
+          'Cs5','C5','B4','C5','B4','As4','A4','G4',
+          'G5','E5','G5','Fs5','Ds5','E5','A5','Fs5','G5'
+        ]
+      },
+      {
+        id: 'hungarian',
+        title: '🎻 Hungarian Dance No. 5 (Brahms)',
+        notes: [
+          'D4','G4','Bb4','D5','G5','Fs5','G5','E5','D5',
+          'C5','A4','Bb4','C5','D5','Bb4','G4',
+          'D4','G4','Bb4','D5','G5','Fs5','G5','A5','D5','Fs5','G5'
+        ]
+      },
+      {
+        id: 'minuet',
+        title: '🏰 Minuet in G (Bach)',
+        notes: [
+          'D5','G4','A4','B4','C5','D5','G4','G4',
+          'E5','C5','D5','E5','Fs5','G5','G4','G4',
+          'C5','D5','C5','B4','A4','B4','C5','B4','A4','G4','Fs4','G4','A4','B4','G4','B4','A4'
+        ]
+      }
+    ];
+
+    const LANE_STYLES = [
+      { color: '#F43F5E', glow: '#FDA4AF', label: '1', keyColor: '#E11D48' },
+      { color: '#06B6D4', glow: '#67E8F9', label: '2', keyColor: '#0891B2' },
+      { color: '#F59E0B', glow: '#FDE047', label: '3', keyColor: '#D97706' },
+      { color: '#10B981', glow: '#6EE7B7', label: '4', keyColor: '#059669' }
+    ];
+
+    const CW = 800, CH = 560;
+    const KEY_BED_H = 128;
+    const PLAY_H = CH - KEY_BED_H;
+    const VISIBLE_ROWS = 4.5;
+    const TILE_H = PLAY_H / VISIBLE_ROWS;
+    const LANE_W = CW / 4;
+
+    const canvas = document.getElementById('tiles-canvas');
+    canvas.width = CW; canvas.height = CH;
+    const ctx = canvas.getContext('2d');
+
+    let songIdx = 0;
+    let tileQueue = []; // { lane, freq, note, isSongEnd }
+    let stepCursor = 0;
+    let scrollOffset = 0; // Smooth spring animation 1.0 -> 0.0 when advancing a row
+    let score = 0;
+    let bestScore = Number(localStorage.getItem('maestroBest') || 0);
+    let streak = 0;
+    let multiplier = 1;
+    let timeLeft = ROUND_DURATION;
+    let roundRunning = false;
+    let roundOver = false;
+    let penaltyUntil = 0;
+    let wrongLaneFlash = { lane: -1, until: 0 };
+    let keyPressFlash = [0, 0, 0, 0];
+    let particles = [];
+    let popups = [];
+    let tick = 0;
+    let lastFrameTime = performance.now();
+    let audioCtx = null;
+
+    // 1. Pixel Tablet Viewport Fix
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    window.addEventListener('visibilitychange', () => { if (!document.hidden) syncViewport(); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 60, 180, 450].forEach(ms => setTimeout(syncViewport, ms));
+
+    // 2. Web Audio Classical Grand Piano + Orchestra Chords
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playClassicalNote(freq, isFever = false) {
+      initAudio();
+      const now = audioCtx.currentTime;
+
+      // Rich Piano Fundamental + Octave Shimmer
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc1.type = 'triangle';
+      osc2.type = isFever ? 'sawtooth' : 'sine';
+      osc1.frequency.setValueAtTime(freq, now);
+      osc2.frequency.setValueAtTime(freq * 2, now);
+
+      gain.gain.setValueAtTime(0.36, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+
+      osc1.connect(gain); osc2.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc1.start(now); osc2.start(now);
+      osc1.stop(now + 0.52); osc2.stop(now + 0.52);
+
+      // Warm Sub-Bass Harmony Root on Combo
+      if (multiplier >= 2) {
+        const sub = audioCtx.createOscillator();
+        const subG = audioCtx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(freq * 0.5, now);
+        subG.gain.setValueAtTime(0.18, now);
+        subG.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        sub.connect(subG); subG.connect(audioCtx.destination);
+        sub.start(now); sub.stop(now + 0.4);
+      }
+    }
+
+    function playBuzzer() {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(135, now);
+      osc.frequency.linearRampToValueAtTime(88, now + 0.28);
+      gain.gain.setValueAtTime(0.28, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 0.3);
+    }
+
+    // 3. Populate Song Selector & Build Endless Classical Queue
+    const songSelect = document.getElementById('song-select');
+    CLASSICAL_SONGS.forEach((s, idx) => {
+      const opt = document.createElement('option');
+      opt.value = idx;
+      opt.textContent = s.title;
+      songSelect.appendChild(opt);
+    });
+
+    function appendSongToQueue(sIdx) {
+      const song = CLASSICAL_SONGS[sIdx];
+      let prevLane = tileQueue.length > 0 ? tileQueue[tileQueue.length - 1].lane : -1;
+
+      song.notes.forEach((noteName, nIdx) => {
+        const freq = FREQ[noteName] || FREQ[noteName.replace('b', 's')] || 440;
+        // Map note pitch + variation into Lanes 0..3 so consecutive notes alternate lanes cleanly like Chuck E. Cheese!
+        let lane = nIdx % 4;
+        if (freq < 285) lane = 0;
+        else if (freq < 360) lane = 1;
+        else if (freq < 480) lane = 2;
+        else lane = 3;
+
+        // If same note repeats, keep same lane; if different note lands on same lane, nudge to adjacent lane
+        const prevNote = nIdx > 0 ? song.notes[nIdx - 1] : null;
+        if (prevNote && prevNote !== noteName && lane === prevLane) {
+          lane = (lane + 1) % 4;
+        }
+        prevLane = lane;
+
+        tileQueue.push({
+          lane,
+          freq,
+          noteName,
+          songTitle: song.title,
+          isSongEnd: nIdx === song.notes.length - 1
+        });
+      });
+    }
+
+    function updateHUD() {
+      document.getElementById('score-val').textContent = score;
+      document.getElementById('combo-val').textContent = `${multiplier}x`;
+      document.getElementById('time-val').textContent = Math.max(0, timeLeft).toFixed(1);
+      document.getElementById('timer-pill').classList.toggle('low', timeLeft <= 10 && roundRunning);
+      document.body.classList.toggle('fever-glow', multiplier >= 4);
+    }
+
+    function bumpEl(id) {
+      const el = document.getElementById(id);
+      el.classList.remove('pop-bump');
+      void el.offsetWidth;
+      el.classList.add('pop-bump');
+    }
+
+    function startNewRound(selectedSongIdx = null) {
+      if (selectedSongIdx === null) {
+        songIdx = Math.floor(Math.random() * CLASSICAL_SONGS.length);
+      } else {
+        songIdx = selectedSongIdx;
+      }
+      songSelect.value = songIdx;
+
+      tileQueue = [];
+      stepCursor = 0;
+      scrollOffset = 0;
+      score = 0;
+      streak = 0;
+      multiplier = 1;
+      timeLeft = ROUND_DURATION;
+      roundRunning = false;
+      roundOver = false;
+      penaltyUntil = 0;
+      document.getElementById('jackpot-modal').style.display = 'none';
+      document.getElementById('penalty-toast').style.display = 'none';
+
+      // Queue starting song + 3 random follow-up songs so fast players never run out of tiles!
+      appendSongToQueue(songIdx);
+      for (let i = 0; i < 3; i++) {
+        appendSongToQueue((songIdx + i + 1) % CLASSICAL_SONGS.length);
+      }
+
+      document.getElementById('song-banner').textContent = `${CLASSICAL_SONGS[songIdx].title} — Tap Flashing Key!`;
+      updateHUD();
+    }
+
+    songSelect.onchange = () => startNewRound(Number(songSelect.value));
+    document.getElementById('shuffle-btn').onpointerdown = () => {
+      const next = (songIdx + 1 + Math.floor(Math.random() * (CLASSICAL_SONGS.length - 1))) % CLASSICAL_SONGS.length;
+      startNewRound(next);
+    };
+    document.getElementById('next-random-btn').onpointerdown = () => {
+      const next = (songIdx + 1 + Math.floor(Math.random() * (CLASSICAL_SONGS.length - 1))) % CLASSICAL_SONGS.length;
+      startNewRound(next);
+    };
+
+    // 4. Particles & Floating Score Popups
+    function spawnBurst(x, y, color, count = 20) {
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 2.5 + Math.random() * 8.5;
+        particles.push({
+          x, y,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp - 2,
+          color: i % 3 === 0 ? '#FDE047' : color,
+          size: 5 + Math.random() * 6,
+          life: 26 + Math.random() * 14
+        });
+      }
+    }
+
+    function spawnPopup(x, y, text, color = '#FDE047') {
+      popups.push({ x, y, text, color, life: 34 });
+    }
+
+    // 5. Handle Lane Press (Waits for Key Press, Advances Conveyor, or Triggers Penalty)
+    function handleLaneTap(laneIdx) {
+      const now = performance.now();
+      if (roundOver || now < penaltyUntil) return;
+
+      keyPressFlash[laneIdx] = now + 150;
+      const currentTile = tileQueue[stepCursor];
+      if (!currentTile) return;
+
+      if (laneIdx === currentTile.lane) {
+        // Start countdown clock on the very first correct note!
+        if (!roundRunning) roundRunning = true;
+
+        streak++;
+        if (streak >= 18) multiplier = 4;
+        else if (streak >= 10) multiplier = 3;
+        else if (streak >= 4) multiplier = 2;
+        else multiplier = 1;
+
+        const pts = 10 * multiplier;
+        score += pts;
+        playClassicalNote(currentTile.freq, multiplier >= 4);
+
+        const laneCenterX = (laneIdx + 0.5) * LANE_W;
+        const hitY = PLAY_H - TILE_H * 0.5;
+        const style = LANE_STYLES[laneIdx];
+
+        spawnBurst(laneCenterX, hitY, style.glow, multiplier >= 3 ? 28 : 18);
+        const cheers = multiplier >= 4 ? `🔥 +${pts} FEVER!` : `+${pts}`;
+        spawnPopup(laneCenterX, hitY - 24, cheers, style.glow);
+
+        // Song Clear Bonus if they finish a full classical melody!
+        if (currentTile.isSongEnd) {
+          score += 250;
+          spawnPopup(CW / 2, PLAY_H / 2, '🏆 SONG CLEAR! +250!', '#FDE047');
+          spawnBurst(CW / 2, PLAY_H / 2, '#FDE047', 45);
+          appendSongToQueue(Math.floor(Math.random() * CLASSICAL_SONGS.length));
+        }
+
+        stepCursor++;
+        scrollOffset = 1.0; // Triggers smooth slide-down of the entire tile stack!
+
+        if (tileQueue[stepCursor]) {
+          document.getElementById('song-banner').textContent = tileQueue[stepCursor].songTitle;
+        }
+        bumpEl('score-pill');
+        if (streak === 4 || streak === 10 || streak === 18) bumpEl('combo-pill');
+        updateHUD();
+      } else {
+        // Wrong Key Pressed! Timed Penalty + Combo Reset (Chuck E. Cheese style)
+        streak = 0;
+        multiplier = 1;
+        if (roundRunning) {
+          timeLeft = Math.max(0, timeLeft - PENALTY_TIME_SEC);
+        }
+        penaltyUntil = now + PENALTY_LOCK_MS;
+        wrongLaneFlash = { lane: laneIdx, until: now + PENALTY_LOCK_MS };
+
+        playBuzzer();
+        document.body.classList.add('penalty-shake');
+        document.getElementById('penalty-toast').style.display = 'block';
+        setTimeout(() => {
+          document.body.classList.remove('penalty-shake');
+          document.getElementById('penalty-toast').style.display = 'none';
+        }, PENALTY_LOCK_MS);
+
+        updateHUD();
+      }
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * CW;
+      const laneIdx = Math.max(0, Math.min(3, Math.floor(x / LANE_W)));
+      handleLaneTap(laneIdx);
+    });
+
+    // Optional Keyboard Support (1, 2, 3, 4 or D, F, J, K)
+    window.addEventListener('keydown', (e) => {
+      const map = { '1': 0, '2': 1, '3': 2, '4': 3, 'd': 0, 'f': 1, 'j': 2, 'k': 3 };
+      if (map[e.key.toLowerCase()] !== undefined) handleLaneTap(map[e.key.toLowerCase()]);
+    });
+
+    function triggerJackpotEnd() {
+      roundRunning = false;
+      roundOver = true;
+      if (score > bestScore) {
+        bestScore = score;
+        localStorage.setItem('maestroBest', String(bestScore));
+      }
+
+      // Grand Finale Fanfare
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+        setTimeout(() => playClassicalNote(f, true), i * 110);
+      });
+
+      document.getElementById('jackpot-score').textContent = `🎟️ ${score} Tickets / Points!`;
+      document.getElementById('jackpot-best').textContent = `🏅 High Score: ${bestScore}`;
+      document.getElementById('jackpot-modal').style.display = 'flex';
+    }
+
+    // 6. 60 FPS Arcade Cabinet Renderer
+    function drawRoundedRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+    }
+
+    function render(now) {
+      const dt = Math.min(0.1, (now - lastFrameTime) / 1000);
+      lastFrameTime = now;
+      tick++;
+
+      if (roundRunning && !roundOver) {
+        timeLeft -= dt;
+        if (timeLeft <= 0) {
+          timeLeft = 0;
+          updateHUD();
+          triggerJackpotEnd();
+        } else if (tick % 4 === 0) {
+          updateHUD();
+        }
+      }
+
+      // Smooth spring snap-down for tile stack
+      if (scrollOffset > 0.005) {
+        scrollOffset *= 0.72;
+      } else {
+        scrollOffset = 0;
+      }
+
+      ctx.clearRect(0, 0, CW, CH);
+
+      // 1. Draw 4 Vertical Arcade Lanes
+      for (let l = 0; l < 4; l++) {
+        const lx = l * LANE_W;
+        ctx.fillStyle = l % 2 === 0 ? 'rgba(15, 23, 42, 0.55)' : 'rgba(30, 41, 59, 0.45)';
+        ctx.fillRect(lx, 0, LANE_W, PLAY_H);
+
+        // Wrong-Key Red Flash Overlay
+        if (wrongLaneFlash.lane === l && now < wrongLaneFlash.until) {
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
+          ctx.fillRect(lx, 0, LANE_W, PLAY_H);
+        }
+
+        // Lane Divider Lines
+        if (l > 0) {
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(lx, 0);
+          ctx.lineTo(lx, CH);
+          ctx.stroke();
+        }
+      }
+
+      // 2. Glowing Target Strike Zone Band (Row 0)
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.12)';
+      ctx.fillRect(0, PLAY_H - TILE_H, CW, TILE_H);
+      ctx.strokeStyle = '#38BDF8';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, PLAY_H);
+      ctx.lineTo(CW, PLAY_H);
+      ctx.stroke();
+
+      // 3. Draw Waiting Classical Tiles (Bottom-Up Stack)
+      for (let r = 0; r < 6; r++) {
+        const tile = tileQueue[stepCursor + r];
+        if (!tile) continue;
+
+        const style = LANE_STYLES[tile.lane];
+        const x = tile.lane * LANE_W + 14;
+        const w = LANE_W - 28;
+        const h = TILE_H - 12;
+        const y = PLAY_H - (r + 1 + scrollOffset) * TILE_H + 6;
+
+        ctx.save();
+        if (r === 0) {
+          // Active Bottom Tile: Pulsing Neon Glow + Mascot Guide!
+          const pulse = 1 + Math.sin(tick * 0.18) * 0.03;
+          ctx.translate(x + w / 2, y + h / 2);
+          ctx.scale(pulse, pulse);
+          ctx.translate(-(x + w / 2), -(y + h / 2));
+          ctx.shadowColor = style.glow;
+          ctx.shadowBlur = 24;
+        }
+
+        drawRoundedRect(x, y, w, h, 20);
+        ctx.fillStyle = style.color;
+        ctx.fill();
+        ctx.lineWidth = r === 0 ? 5 : 3;
+        ctx.strokeStyle = r === 0 ? '#FFFFFF' : style.glow;
+        ctx.stroke();
+
+        // Inner Gloss Highlight
+        drawRoundedRect(x + 8, y + 6, w - 16, h * 0.35, 12);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+        ctx.fill();
+
+        // Tile Icon
+        ctx.font = r === 0 ? '36px sans-serif' : '26px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const icon = r === 0 ? (isEmma ? '🐶' : '🐉') : '🎵';
+        ctx.fillText(icon, x + w / 2, y + h / 2);
+        ctx.restore();
+      }
+
+      // 4. Draw 4 Giant Physical Arcade Piano Keys at Bottom
+      const activeLane = tileQueue[stepCursor] ? tileQueue[stepCursor].lane : -1;
+
+      for (let l = 0; l < 4; l++) {
+        const style = LANE_STYLES[l];
+        const kx = l * LANE_W + 8;
+        const ky = PLAY_H + 8;
+        const kw = LANE_W - 16;
+        const kh = KEY_BED_H - 16;
+        const isPressed = now < keyPressFlash[l];
+        const isTarget = l === activeLane;
+
+        ctx.save();
+        drawRoundedRect(kx, isPressed ? ky + 6 : ky, kw, kh, 22);
+        ctx.fillStyle = isPressed ? style.glow : (isTarget ? style.color : '#F8FAFC');
+        ctx.fill();
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = isTarget ? '#FDE047' : style.color;
+        ctx.stroke();
+
+        // Colored Key Cap Strip
+        drawRoundedRect(kx + 10, (isPressed ? ky + 6 : ky) + 10, kw - 20, 28, 12);
+        ctx.fillStyle = isTarget ? 'rgba(255,255,255,0.35)' : style.color;
+        ctx.fill();
+
+        // Key Label / Target Star
+        ctx.font = 'bold 34px Fredoka, sans-serif';
+        ctx.fillStyle = isTarget ? '#FFFFFF' : '#0F172A';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isTarget ? '⭐ TAP!' : '🎹', kx + kw / 2, (isPressed ? ky + 6 : ky) + kh * 0.62);
+        ctx.restore();
+      }
+
+      // 5. Draw Fireworks Particles
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.22; p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (p.life / 34), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 6. Draw Floating Score Popups
+      for (let i = popups.length - 1; i >= 0; i--) {
+        const pop = popups[i];
+        pop.y -= 1.6; pop.life--;
+        if (pop.life <= 0) { popups.splice(i, 1); continue; }
+        ctx.save();
+        ctx.font = 'bold 28px Fredoka, sans-serif';
+        ctx.fillStyle = pop.color;
+        ctx.strokeStyle = '#020617';
+        ctx.lineWidth = 5;
+        ctx.textAlign = 'center';
+        ctx.strokeText(pop.text, pop.x, pop.y);
+        ctx.fillText(pop.text, pop.x, pop.y);
+        ctx.restore();
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    startNewRound(null);
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
