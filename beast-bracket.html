@@ -26,8 +26,11 @@
       <div class="b-side" id="bracket-right"></div>
     </section>
 
-    <main class="arena">
+    <main class="arena" id="arena-box">
+      <canvas id="fx-canvas" width="960" height="440"></canvas>
+
       <div class="fighter-card" id="card-0">
+        <div class="result-stamp" id="stamp-0">👑 WINNER!</div>
         <div class="portrait-box">
           <canvas class="portrait-canvas" id="pcanvas-0" width="320" height="360"></canvas>
           <span class="sound-tip" id="fact-btn-0">🔊 Fun Fact</span>
@@ -48,11 +51,17 @@
 
         <div class="tug-wrap" id="tug-wrap">
           <div class="tug-bar"><div class="tug-fill" id="tug-fill"></div></div>
-          <button class="roar-btn" id="roar-btn">🔥 TAP TO BOOST!</button>
+          <button class="roar-btn" id="roar-btn">🔥 TAP TO ROAR!</button>
+        </div>
+
+        <div class="result-center" id="result-center">
+          <div style="font-size:21px;font-weight:700;color:#FDE047;" id="win-headline">T-REX WINS!</div>
+          <button class="next-match-btn" id="next-match-btn">➡️ NEXT BATTLE!</button>
         </div>
       </div>
 
       <div class="fighter-card" id="card-1">
+        <div class="result-stamp" id="stamp-1">👑 WINNER!</div>
         <div class="portrait-box">
           <canvas class="portrait-canvas" id="pcanvas-1" width="320" height="360"></canvas>
           <span class="sound-tip" id="fact-btn-1">🔊 Fun Fact</span>
@@ -97,7 +106,43 @@
     if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
     [0, 80, 250].forEach(ms => setTimeout(syncViewport, ms));
 
-    // Load 4x2 Division Sprite Grids (.jpg, .jpeg, or .png automatic detection)
+    const fxCanvas = document.getElementById('fx-canvas');
+    const fxCtx = fxCanvas.getContext('2d');
+    let confetti = [];
+
+    function spawnVictoryFireworks(winnerSide) {
+      const cx = winnerSide === 0 ? 250 : 710;
+      const cy = 210;
+      const colors = ['#FDE047', '#06D6A0', '#38BDF8', '#F43F5E', '#A855F7', '#FFFFFF'];
+      for (let i = 0; i < 65; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 3 + Math.random() * 11;
+        confetti.push({
+          x: cx + (Math.random() - 0.5) * 120,
+          y: cy + (Math.random() - 0.5) * 80,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp - 3.5,
+          color: colors[i % colors.length],
+          w: 7 + Math.random() * 7,
+          life: 62 + Math.random() * 25
+        });
+      }
+    }
+
+    function animateFX() {
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const p = confetti[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.24; p.life--;
+        if (p.life <= 0) { confetti.splice(i, 1); continue; }
+        fxCtx.fillStyle = p.color;
+        fxCtx.fillRect(p.x, p.y, p.w, p.w * 0.7);
+      }
+      requestAnimationFrame(animateFX);
+    }
+    animateFX();
+
+    // Load 4x2 Division Sprite Grids
     const SHEETS = {};
     ['sharks', 'jungle', 'dinos'].forEach(key => {
       const img = new Image();
@@ -129,9 +174,10 @@
     let matchIdx = 0;
     let currentTrait = TRAITS[0];
     let pickedSide = -1;
-    let clashing = false;
+    let phase = 'pick'; // 'pick' | 'clash' | 'result'
     let tugPower = 50;
     let clashTimer = null;
+    let autoNextTimer = null;
     let audioCtx = null;
 
     function initAudio() {
@@ -169,7 +215,6 @@
       return a;
     }
 
-    // Exact 8:9 Full-Card Slicer — Preserves 100% of Animal + Ornate Pixel Card Border!
     function drawBeastPortrait(canvasEl, beast) {
       const c = canvasEl.getContext('2d');
       const w = canvasEl.width, h = canvasEl.height;
@@ -181,15 +226,8 @@
         const row = Math.floor(beast.cell / 4);
         const cellW = sheet.naturalWidth / 4;
         const cellH = sheet.naturalHeight / 2;
-        // Trim only the tiny 0.8% dark gutter between cards so the full ornate border & beast show!
-        const padX = cellW * 0.008;
-        const padY = cellH * 0.010;
-        c.drawImage(
-          sheet,
-          col * cellW + padX, row * cellH + padY,
-          cellW - padX * 2, cellH - padY * 2,
-          0, 0, w, h
-        );
+        const padX = cellW * 0.008, padY = cellH * 0.010;
+        c.drawImage(sheet, col * cellW + padX, row * cellH + padY, cellW - padX * 2, cellH - padY * 2, 0, 0, w, h);
       } else {
         const grad = c.createRadialGradient(w / 2, h / 2, 15, w / 2, h / 2, w * 0.65);
         grad.addColorStop(0, beast.color);
@@ -266,17 +304,20 @@
           </div>
         `).join('');
 
-        document.getElementById(`card-${idx}`).classList.remove('picked');
+        const cardEl = document.getElementById(`card-${idx}`);
+        cardEl.classList.remove('picked', 'winner-card', 'loser-card');
         document.getElementById(`cta-${idx}`).style.display = 'block';
       });
     }
 
     function setupMatch() {
-      clashing = false;
+      if (autoNextTimer) { clearTimeout(autoNextTimer); autoNextTimer = null; }
+      phase = 'pick';
       pickedSide = -1;
       document.body.classList.remove('clash-shake');
       document.getElementById('vs-orb').style.display = 'flex';
       document.getElementById('tug-wrap').style.display = 'none';
+      document.getElementById('result-center').style.display = 'none';
 
       currentTrait = TRAITS[Math.floor(Math.random() * TRAITS.length)];
       document.getElementById('trait-title').textContent = currentTrait.label;
@@ -289,6 +330,8 @@
     }
 
     function startTournament(cupKey) {
+      if (clashTimer) clearInterval(clashTimer);
+      if (autoNextTimer) clearTimeout(autoNextTimer);
       currentCup = cupKey;
       document.querySelectorAll('.cup-btn').forEach(b => b.classList.toggle('active', b.dataset.cup === cupKey));
       document.getElementById('champ-modal').style.display = 'none';
@@ -307,8 +350,8 @@
     }
 
     function pickFighter(side) {
-      if (clashing) return;
-      clashing = true;
+      if (phase !== 'pick') return;
+      phase = 'clash';
       pickedSide = side;
 
       const pair = getMatchPair(matchIdx);
@@ -323,21 +366,22 @@
       document.body.classList.add('clash-shake');
 
       const diff = myBeast[currentTrait.key] - foeBeast[currentTrait.key];
-      tugPower = Math.max(28, Math.min(78, 54 + diff * 9));
+      tugPower = Math.max(32, Math.min(82, 56 + diff * 10));
       document.getElementById('tug-fill').style.width = `${tugPower}%`;
 
-      playSound(180, 95, 0.3, 'sawtooth', 0.28);
+      playSound(190, 95, 0.25, 'sawtooth', 0.28);
 
+      // Snappy 1.5s clash so the victory reveal lands fast & hard!
       let elapsed = 0;
       clashTimer = setInterval(() => {
         elapsed += 100;
-        const foePush = 1.3 + (foeBeast[currentTrait.key] - myBeast[currentTrait.key]) * 0.25;
+        const foePush = 1.2 + (foeBeast[currentTrait.key] - myBeast[currentTrait.key]) * 0.25;
         tugPower = Math.max(8, Math.min(98, tugPower - foePush));
         document.getElementById('tug-fill').style.width = `${tugPower}%`;
 
-        if (elapsed % 300 === 0) playSound(120 + tugPower * 2, 90, 0.09, 'triangle', 0.14);
+        if (elapsed % 200 === 0) playSound(140 + tugPower * 2, 95, 0.08, 'triangle', 0.14);
 
-        if (elapsed >= 3000 || tugPower >= 96) {
+        if (elapsed >= 1500 || tugPower >= 95) {
           clearInterval(clashTimer);
           finishClash(tugPower >= 48 ? side : (1 - side));
         }
@@ -346,30 +390,63 @@
 
     document.getElementById('roar-btn').onpointerdown = (e) => {
       e.stopPropagation();
-      if (!clashing) return;
-      tugPower = Math.min(98, tugPower + (isEmma ? 9.5 : 8.0));
+      if (phase !== 'clash') return;
+      tugPower = Math.min(98, tugPower + (isEmma ? 12 : 10));
       document.getElementById('tug-fill').style.width = `${tugPower}%`;
-      playSound(320, 620, 0.11, 'square', 0.2);
+      playSound(340, 680, 0.1, 'square', 0.22);
     };
 
+    function advanceAfterResult() {
+      if (phase !== 'result') return;
+      if (autoNextTimer) { clearTimeout(autoNextTimer); autoNextTimer = null; }
+      matchIdx++;
+      setupMatch();
+    }
+
     function finishClash(winnerSide) {
+      phase = 'result';
       document.body.classList.remove('clash-shake');
+      document.getElementById('tug-wrap').style.display = 'none';
+
+      const loserSide = 1 - winnerSide;
       const pair = getMatchPair(matchIdx);
       const winner = pair[winnerSide];
 
-      [440, 554.37, 659.25].forEach((f, i) => setTimeout(() => playSound(f, f * 1.02, 0.22, 'triangle', 0.25), i * 90));
+      // DRAMATIC WINNER SPOTLIGHT + DEFEATED GRAY-OUT!
+      const winCard = document.getElementById(`card-${winnerSide}`);
+      const loseCard = document.getElementById(`card-${loserSide}`);
+      winCard.classList.remove('picked');
+      loseCard.classList.remove('picked');
+      winCard.classList.add('winner-card');
+      loseCard.classList.add('loser-card');
+
+      document.getElementById(`stamp-${winnerSide}`).textContent = '👑 WINNER!';
+      document.getElementById(`stamp-${loserSide}`).textContent = '❌ OUT!';
+
+      spawnVictoryFireworks(winnerSide);
+      [440, 554.37, 659.25, 880].forEach((f, i) => setTimeout(() => playSound(f, f * 1.03, 0.22, 'triangle', 0.28), i * 85));
       speak(`${winner.name} wins!`);
 
       if (matchIdx < 4) sf[matchIdx] = winner;
       else if (matchIdx < 6) fin[matchIdx - 4] = winner;
       else {
-        setTimeout(() => crownChampion(winner), 650);
+        renderBracketTree();
+        setTimeout(() => crownChampion(winner), 1800);
         return;
       }
 
-      matchIdx++;
-      setTimeout(setupMatch, 900);
+      renderBracketTree();
+      document.getElementById('win-headline').textContent = `🏆 ${winner.name.toUpperCase()} WINS!`;
+      document.getElementById('result-center').style.display = 'flex';
+
+      // Hold the celebration for 2.7s so they see who won, OR let them tap Next Battle immediately!
+      autoNextTimer = setTimeout(advanceAfterResult, 2700);
     }
+
+    document.getElementById('next-match-btn').onpointerdown = (e) => {
+      e.stopPropagation();
+      advanceAfterResult();
+    };
 
     function crownChampion(champ) {
       crowns++;
@@ -384,8 +461,12 @@
 
     [0, 1].forEach(side => {
       document.getElementById(`card-${side}`).onpointerdown = () => {
-        if (clashing) {
-          if (side === pickedSide) document.getElementById('roar-btn').onpointerdown(new Event('pointerdown'));
+        if (phase === 'clash' && side === pickedSide) {
+          document.getElementById('roar-btn').onpointerdown(new Event('pointerdown'));
+          return;
+        }
+        if (phase === 'result') {
+          advanceAfterResult();
           return;
         }
         pickFighter(side);
@@ -398,10 +479,7 @@
     });
 
     document.querySelectorAll('.cup-btn').forEach(btn => {
-      btn.onpointerdown = () => {
-        if (clashTimer) clearInterval(clashTimer);
-        startTournament(btn.dataset.cup);
-      };
+      btn.onpointerdown = () => startTournament(btn.dataset.cup);
     });
 
     document.getElementById('new-tourney-btn').onpointerdown = () => startTournament(currentCup);

@@ -1,5 +1,5 @@
 /* Offline shell for the Wyatt & Emma Pixel WebAPK. */
-const CACHE = 'wyatt-emma-arcade-v16';
+const CACHE = 'wyatt-emma-arcade-v17';
 
 const SHELL = [
   '/',
