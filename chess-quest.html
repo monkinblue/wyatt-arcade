@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Royal Chess Quest!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="chess-quest.css">
+</head>
+<body>
+  <div id="chess-app">
+    <header>
+      <a href="index.html" class="nav-btn">🏠 Back</a>
+      <div class="rule-banner" id="rule-banner" title="Tap to hear how this piece moves!">🏰 Rook slides straight UP, DOWN, LEFT, and RIGHT!</div>
+      <div class="score-pill">🎯 Taken: <span id="taken-val">0</span> • ⭐ <span id="wave-val">1</span></div>
+    </header>
+
+    <main class="dojo-layout">
+      <aside class="side-card" id="piece-menu">
+        <div class="panel-title">PICK YOUR PIECE</div>
+        <button class="piece-btn active" data-piece="rook"><span class="p-glyph">♜</span>Rook</button>
+        <button class="piece-btn" data-piece="bishop"><span class="p-glyph">♝</span>Bishop</button>
+        <button class="piece-btn" data-piece="knight"><span class="p-glyph">♞</span>Knight</button>
+        <button class="piece-btn" data-piece="queen"><span class="p-glyph">♛</span>Queen</button>
+        <button class="piece-btn" data-piece="king"><span class="p-glyph">♚</span>King</button>
+        <button class="piece-btn" data-piece="pawn"><span class="p-glyph">♟</span>Pawn</button>
+      </aside>
+
+      <section class="board-stage">
+        <div class="board-frame">
+          <canvas id="chess-canvas" width="640" height="640"></canvas>
+        </div>
+      </section>
+
+      <aside class="side-card">
+        <div class="coach-box">
+          <div style="font-size:38px;" id="coach-icon">🐉</div>
+          <div style="font-size:14px;font-weight:700;color:#FDE047;" id="coach-tip">Tap 🎯 RED rings to take pieces!</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+          <div class="panel-title">BOARD SETTINGS</div>
+          <button class="toggle-btn" id="size-btn">📐 8×8 Full Board</button>
+          <button class="toggle-btn" id="guard-btn">🛡️ Guard Danger: OFF</button>
+        </div>
+
+        <button class="action-btn" id="new-puzzle-btn">🎲 New Targets!</button>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 80, 250].forEach(ms => setTimeout(syncViewport, ms));
+
+    document.getElementById('coach-icon').textContent = isEmma ? '🐶' : '🐉';
+
+    // Optional 3x2 Hi-Bit Fantasy Chess Sprite Sheet Loader (Rook, Bishop, Knight / Queen, King, Pawn)
+    const spriteSheet = new Image();
+    let sheetReady = false;
+    spriteSheet.onload = () => { sheetReady = true; };
+    spriteSheet.src = 'images/chess-grid.jpg';
+
+    const PIECE_INFO = {
+      rook:   { name: 'Rook',   glyph: '♜', cell: 0, rule: '♜ The Rook zooms straight UP, DOWN, LEFT, and RIGHT!', voice: 'The Rook zooms straight along rows and columns!' },
+      bishop: { name: 'Bishop', glyph: '♝', cell: 1, rule: '♝ The Bishop glides DIAGONALLY across matching colors!', voice: 'The Bishop glides diagonally across corner lines!' },
+      knight: { name: 'Knight', glyph: '♞', cell: 2, rule: '♞ The Knight JUMPS in an L-shape: 2 squares + 1 over!', voice: 'The Knight jumps over pieces in an L shape!' },
+      queen:  { name: 'Queen',  glyph: '♛', cell: 3, rule: '♛ The Super Queen zooms STRAIGHT and DIAGONAL!', voice: 'The Queen zooms straight AND diagonally!' },
+      king:   { name: 'King',   glyph: '♚', cell: 4, rule: '♚ The King steps 1 careful square in ANY direction!', voice: 'The King steps one square in any direction!' },
+      pawn:   { name: 'Pawn',   glyph: '♟', cell: 5, rule: '♟ Pawn steps UP green, but CAPTURES diagonally on RED!', voice: 'Pawns march straight up, and capture diagonally!' }
+    };
+
+    const ENEMY_GLYPHS = ['♟', '♜', '♞', '♝'];
+    const CW = 640;
+    const canvas = document.getElementById('chess-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let boardN = isEmma ? 6 : 8;
+    let guardMode = false;
+    let pieceType = 'rook';
+    let hero = { r: 3, c: 2, animX: null, animY: null, hop: 0 };
+    let enemies = []; // { r, c, glyph, isGuard, guardType }
+    let flyingOut = []; // Bonked captured pieces flying off screen!
+    let particles = [];
+    let wrongFlash = null;
+    let totalTaken = 0;
+    let wave = 1;
+    let animating = false;
+    let tick = 0;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(txt) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(txt);
+      u.rate = 0.95; u.pitch = 1.08;
+      window.speechSynthesis.speak(u);
+    }
+
+    function playTone(f1, f2, dur = 0.16, type = 'triangle', vol = 0.24) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f1, now);
+      o.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+      g.gain.setValueAtTime(vol, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(now); o.stop(now + dur);
+    }
+
+    function spawnBurst(x, y, color = '#FDE047', count = 26) {
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2, sp = 2.5 + Math.random() * 8;
+        particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2, color: i % 2 ? '#FFF' : color, life: 32 });
+      }
+    }
+
+    function inBounds(r, c) {
+      return r >= 0 && r < boardN && c >= 0 && c < boardN;
+    }
+
+    function enemyAt(r, c) {
+      return enemies.find(e => e.r === r && e.c === c) || null;
+    }
+
+    // Compute Danger Squares Watched by Enemy Guard Piece (When Guard Mode is ON)
+    function getDangerSet() {
+      const set = new Set();
+      if (!guardMode) return set;
+      enemies.filter(e => e.isGuard).forEach(g => {
+        const dirs = g.guardType === 'rook'
+          ? [[-1,0],[1,0],[0,-1],[0,1]]
+          : [[-1,-1],[-1,1],[1,-1],[1,1]];
+        dirs.forEach(([dr, dc]) => {
+          let nr = g.r + dr, nc = g.c + dc;
+          while (inBounds(nr, nc)) {
+            set.add(`${nr},${nc}`);
+            if (enemyAt(nr, nc) || (nr === hero.r && nc === hero.c)) break;
+            nr += dr; nc += dc;
+          }
+        });
+      });
+      return set;
+    }
+
+    // Compute Exact Legal Chess Moves & Captures for Selected Piece!
+    function getLegalMoves(type, r, c) {
+      const moves = []; // { r, c, capture: boolean }
+      const slide = (dirs) => {
+        dirs.forEach(([dr, dc]) => {
+          let nr = r + dr, nc = c + dc;
+          while (inBounds(nr, nc)) {
+            const foe = enemyAt(nr, nc);
+            if (foe) {
+              moves.push({ r: nr, c: nc, capture: true });
+              break; // Chess rule: sliding pieces stop when capturing!
+            }
+            moves.push({ r: nr, c: nc, capture: false });
+            nr += dr; nc += dc;
+          }
+        });
+      };
+
+      if (type === 'rook') slide([[-1,0],[1,0],[0,-1],[0,1]]);
+      else if (type === 'bishop') slide([[-1,-1],[-1,1],[1,-1],[1,1]]);
+      else if (type === 'queen') slide([[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]);
+      else if (type === 'king') {
+        [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([dr, dc]) => {
+          const nr = r + dr, nc = c + dc;
+          if (inBounds(nr, nc)) moves.push({ r: nr, c: nc, capture: !!enemyAt(nr, nc) });
+        });
+      } else if (type === 'knight') {
+        [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr, dc]) => {
+          const nr = r + dr, nc = c + dc;
+          if (inBounds(nr, nc)) moves.push({ r: nr, c: nc, capture: !!enemyAt(nr, nc) });
+        });
+      } else if (type === 'pawn') {
+        // Forward 1 square if empty (plus 2 squares from starting rank!)
+        if (inBounds(r - 1, c) && !enemyAt(r - 1, c)) {
+          moves.push({ r: r - 1, c, capture: false });
+          if (r === boardN - 2 && inBounds(r - 2, c) && !enemyAt(r - 2, c)) {
+            moves.push({ r: r - 2, c, capture: false });
+          }
+        }
+        // Diagonal Captures ONLY when an enemy occupies the diagonal!
+        [-1, 1].forEach(dc => {
+          if (inBounds(r - 1, c + dc) && enemyAt(r - 1, c + dc)) {
+            moves.push({ r: r - 1, c: c + dc, capture: true });
+          }
+        });
+      }
+      return moves;
+    }
+
+    // Build Intuitive Target Wave Guaranteed to Match the Piece's Rules (Especially Bishops & Pawns!)
+    function spawnWave(announce = false) {
+      enemies = [];
+      if (pieceType === 'pawn') {
+        hero.r = boardN - 1;
+        hero.c = Math.floor(boardN / 2);
+        // Place staircase of capturable/reachable enemy pawns ahead so Pawn learns step + diagonal take!
+        let curR = hero.r - 1, curC = hero.c;
+        for (let i = 0; i < 3; i++) {
+          const diagC = curC + (i % 2 === 0 ? -1 : 1);
+          if (curR >= 1 && inBounds(curR, diagC)) {
+            enemies.push({ r: curR, c: diagC, glyph: '♟', isGuard: false });
+            curC = diagC;
+            curR -= 1 + (i === 0 ? 1 : 0);
+          }
+        }
+        if (enemies.length === 0) enemies.push({ r: hero.r - 1, c: Math.max(0, hero.c - 1), glyph: '♟', isGuard: false });
+      } else {
+        hero.r = Math.floor(boardN / 2);
+        hero.c = Math.floor(boardN / 2) - 1;
+        const heroParity = (hero.r + hero.c) % 2;
+        const count = isEmma ? 3 : 4;
+        let tries = 0;
+
+        while (enemies.length < count && tries < 200) {
+          tries++;
+          const r = Math.floor(Math.random() * boardN);
+          const c = Math.floor(Math.random() * boardN);
+          if (r === hero.r && c === hero.c) continue;
+          if (enemyAt(r, c)) continue;
+          // Crucial Bishop Rule: Bishops stay on ONE color square forever!
+          if (pieceType === 'bishop' && (r + c) % 2 !== heroParity) continue;
+
+          const makeGuard = guardMode && enemies.length === 0;
+          enemies.push({
+            r, c,
+            glyph: makeGuard ? '♜' : ENEMY_GLYPHS[enemies.length % ENEMY_GLYPHS.length],
+            isGuard: makeGuard,
+            guardType: 'rook'
+          });
+        }
+      }
+
+      const info = PIECE_INFO[pieceType];
+      document.getElementById('rule-banner').textContent = info.rule;
+      document.getElementById('coach-tip').textContent = pieceType === 'pawn'
+        ? 'Step ⬆️ green, take ↗️ RED, reach the top for ♛!'
+        : 'Tap 🎯 RED targets to take pieces!';
+      if (announce) speak(info.voice);
+    }
+
+    // Handle Square Tap: Smooth Glide/Hop Animation + Capture Bonk!
+    canvas.addEventListener('pointerdown', (e) => {
+      if (animating) return;
+      const rect = canvas.getBoundingClientRect();
+      const px = ((e.clientX - rect.left) / rect.width) * CW;
+      const py = ((e.clientY - rect.top) / rect.height) * CW;
+      const sq = CW / boardN;
+      const c = Math.floor(px / sq);
+      const r = Math.floor(py / sq);
+      if (!inBounds(r, c) || (r === hero.r && c === hero.c)) return;
+
+      const legal = getLegalMoves(pieceType, hero.r, hero.c);
+      const match = legal.find(m => m.r === r && m.c === c);
+
+      if (!match) {
+        // Gentle educational nudge: flash tapped square & speak how this piece moves
+        wrongFlash = { r, c, until: performance.now() + 420 };
+        playTone(170, 125, 0.18, 'sawtooth', 0.16);
+        document.getElementById('coach-tip').textContent = `Follow the glowing green dots!`;
+        return;
+      }
+
+      const danger = getDangerSet();
+      if (danger.has(`${r},${c}`)) {
+        wrongFlash = { r, c, until: performance.now() + 500 };
+        playTone(210, 140, 0.22, 'sawtooth', 0.22);
+        speak('Careful! That square is guarded!');
+        return;
+      }
+
+      // Animate Hero Piece Moving/Jumping to (r, c)!
+      animating = true;
+      const startX = (hero.c + 0.5) * sq, startY = (hero.r + 0.5) * sq;
+      const endX = (c + 0.5) * sq, endY = (r + 0.5) * sq;
+      const isJump = pieceType === 'knight';
+      const startTime = performance.now();
+      const dur = isJump ? 340 : 230;
+      playTone(330, 560, 0.14, 'triangle', 0.22);
+
+      function stepAnim(now) {
+        const t = Math.min(1, (now - startTime) / dur);
+        const ease = 1 - Math.pow(1 - t, 3);
+        hero.animX = startX + (endX - startX) * ease;
+        hero.animY = startY + (endY - startY) * ease;
+        hero.hop = isJump ? Math.sin(t * Math.PI) * 34 : Math.sin(t * Math.PI) * 8;
+
+        if (t < 1) {
+          requestAnimationFrame(stepAnim);
+        } else {
+          hero.r = r; hero.c = c;
+          hero.animX = null; hero.animY = null; hero.hop = 0;
+          animating = false;
+
+          // Did we CAPTURE an enemy piece?!
+          const capturedIdx = enemies.findIndex(foe => foe.r === r && foe.c === c);
+          if (capturedIdx !== -1) {
+            const foe = enemies.splice(capturedIdx, 1)[0];
+            totalTaken++;
+            document.getElementById('taken-val').textContent = totalTaken;
+            flyingOut.push({
+              x: endX, y: endY,
+              vx: (Math.random() > 0.5 ? 1 : -1) * (5 + Math.random() * 4),
+              vy: -9.5, rot: 0, glyph: foe.glyph
+            });
+            spawnBurst(endX, endY, '#FDE047', 34);
+            [523.25, 659.25, 783.99].forEach((f, i) => setTimeout(() => playTone(f, f * 1.04, 0.16, 'triangle', 0.26), i * 65));
+          }
+
+          // Pawn Promotion Celebration at Top Row!
+          if (pieceType === 'pawn' && hero.r === 0) {
+            spawnBurst(endX, endY, '#06D6A0', 45);
+            speak('Pawn reached the top! Super Queen power!');
+            [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => setTimeout(() => playTone(f, f, 0.2, 'triangle', 0.28), i * 80));
+            setTimeout(() => { wave++; document.getElementById('wave-val').textContent = wave; spawnWave(false); }, 950);
+            return;
+          }
+
+          // Wave Cleared!
+          if (enemies.length === 0) {
+            wave++;
+            document.getElementById('wave-val').textContent = wave;
+            speak('Board cleared! Awesome capturing!');
+            setTimeout(() => spawnWave(false), 750);
+          }
+        }
+      }
+      requestAnimationFrame(stepAnim);
+    });
+
+    // UI Controls
+    document.querySelectorAll('.piece-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        pieceType = btn.dataset.piece;
+        document.querySelectorAll('.piece-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        spawnWave(true);
+      };
+    });
+
+    const sizeBtn = document.getElementById('size-btn');
+    function syncSizeLabel() {
+      sizeBtn.textContent = boardN === 6 ? '📐 6×6 Mini Board' : '📐 8×8 Full Board';
+      sizeBtn.classList.toggle('on', boardN === 8);
+    }
+    syncSizeLabel();
+    sizeBtn.onpointerdown = () => {
+      boardN = boardN === 6 ? 8 : 6;
+      syncSizeLabel();
+      spawnWave(false);
+    };
+
+    const guardBtn = document.getElementById('guard-btn');
+    guardBtn.onpointerdown = () => {
+      guardMode = !guardMode;
+      guardBtn.textContent = guardMode ? '🛡️ Guard Danger: ON' : '🛡️ Guard Danger: OFF';
+      guardBtn.classList.toggle('on', guardMode);
+      spawnWave(false);
+    };
+
+    document.getElementById('new-puzzle-btn').onpointerdown = () => spawnWave(false);
+    document.getElementById('rule-banner').onpointerdown = () => speak(PIECE_INFO[pieceType].voice);
+
+    // Draw Crisp 3D Chess Token
+    function drawChessToken(x, y, radius, glyph, isHero, isGuard = false) {
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Drop Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.42)';
+      ctx.beginPath();
+      ctx.ellipse(0, radius * 0.22, radius * 0.92, radius * 0.72, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Token Base Disc
+      const grad = ctx.createRadialGradient(-radius * 0.25, -radius * 0.3, radius * 0.1, 0, 0, radius);
+      if (isHero) {
+        grad.addColorStop(0, '#FEF9C3');
+        grad.addColorStop(0.7, '#F59E0B');
+        grad.addColorStop(1, '#B45309');
+      } else if (isGuard) {
+        grad.addColorStop(0, '#FCA5A5');
+        grad.addColorStop(0.7, '#DC2626');
+        grad.addColorStop(1, '#7F1D1D');
+      } else {
+        grad.addColorStop(0, '#C4B5FD');
+        grad.addColorStop(0.7, '#6D28D9');
+        grad.addColorStop(1, '#3B0764');
+      }
+
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.lineWidth = isHero ? 4 : 3;
+      ctx.strokeStyle = isHero ? '#FFFFFF' : '#E9D5FF';
+      ctx.stroke();
+
+      // Staunton Silhouette Glyph
+      ctx.font = `bold ${Math.round(radius * 1.38)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isHero ? '#1E1B4B' : '#FFFFFF';
+      ctx.fillText(glyph, 0, 2);
+      ctx.restore();
+    }
+
+    function render(now = 0) {
+      tick++;
+      const sq = CW / boardN;
+      ctx.clearRect(0, 0, CW, CW);
+
+      // 1. Checkerboard Squares
+      for (let r = 0; r < boardN; r++) {
+        for (let c = 0; c < boardN; c++) {
+          const light = (r + c) % 2 === 0;
+          ctx.fillStyle = light ? '#FDE68A' : '#B45309';
+          ctx.fillRect(c * sq, r * sq, sq, sq);
+
+          if (wrongFlash && wrongFlash.r === r && wrongFlash.c === c && now < wrongFlash.until) {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.55)';
+            ctx.fillRect(c * sq, r * sq, sq, sq);
+          }
+        }
+      }
+
+      // 2. Pawn Top-Row Crown Goal Highlight
+      if (pieceType === 'pawn') {
+        ctx.fillStyle = 'rgba(6, 214, 160, 0.25)';
+        ctx.fillRect(0, 0, CW, sq);
+      }
+
+      // 3. Guard Danger Zones (If Guard Mode ON)
+      const dangerSet = getDangerSet();
+      dangerSet.forEach(key => {
+        const [dr, dc] = key.split(',').map(Number);
+        ctx.fillStyle = 'rgba(249, 115, 22, 0.34)';
+        ctx.fillRect(dc * sq, dr * sq, sq, sq);
+        ctx.font = `${Math.round(sq * 0.28)}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('⚠️', (dc + 0.5) * sq, (dr + 0.5) * sq);
+      });
+
+      // 4. Legal Move Stepping Dots & Pulsing Capture Target Rings!
+      if (!animating) {
+        const moves = getLegalMoves(pieceType, hero.r, hero.c);
+        const hx = (hero.c + 0.5) * sq, hy = (hero.r + 0.5) * sq;
+
+        // Subtle L-shape guide lines for the Knight so kids visually understand the 2+1 L-pattern!
+        if (pieceType === 'knight') {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(16, 185, 129, 0.38)';
+          ctx.lineWidth = 4;
+          ctx.setLineDash([6, 6]);
+          moves.forEach(m => {
+            const elbowX = Math.abs(m.r - hero.r) === 2 ? hx : (m.c + 0.5) * sq;
+            const elbowY = Math.abs(m.r - hero.r) === 2 ? (m.r + 0.5) * sq : hy;
+            ctx.beginPath();
+            ctx.moveTo(hx, hy);
+            ctx.lineTo(elbowX, elbowY);
+            ctx.lineTo((m.c + 0.5) * sq, (m.r + 0.5) * sq);
+            ctx.stroke();
+          });
+          ctx.restore();
+        }
+
+        moves.forEach(m => {
+          const cx = (m.c + 0.5) * sq, cy = (m.r + 0.5) * sq;
+          if (m.capture) {
+            const pulse = 1 + Math.sin(tick * 0.18) * 0.08;
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(pulse, pulse);
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+            ctx.beginPath(); ctx.arc(0, 0, sq * 0.44, 0, Math.PI * 2); ctx.fill();
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#EF4444';
+            ctx.stroke();
+            ctx.restore();
+          } else {
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.88)';
+            ctx.beginPath();
+            ctx.arc(cx, cy, sq * 0.17, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#ECFDF5';
+            ctx.stroke();
+          }
+        });
+      }
+
+      // 5. Draw Enemy Pieces
+      enemies.forEach(foe => {
+        const fx = (foe.c + 0.5) * sq, fy = (foe.r + 0.5) * sq;
+        drawChessToken(fx, fy, sq * 0.36, foe.glyph, false, foe.isGuard);
+        // Star icon above capturable foes
+        ctx.font = `${Math.round(sq * 0.24)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(foe.isGuard ? '🛡️' : '⭐', fx + sq * 0.26, fy - sq * 0.26);
+      });
+
+      // 6. Draw Hero Chess Piece
+      const hx = hero.animX !== null ? hero.animX : (hero.c + 0.5) * sq;
+      const hy = (hero.animY !== null ? hero.animY : (hero.r + 0.5) * sq) - hero.hop;
+      drawChessToken(hx, hy, sq * 0.40, PIECE_INFO[pieceType].glyph, true);
+
+      // 7. Bonked Enemy Pieces Flying Off Board + Confetti
+      for (let i = flyingOut.length - 1; i >= 0; i--) {
+        const f = flyingOut[i];
+        f.x += f.vx; f.y += f.vy; f.vy += 0.55; f.rot += 0.22;
+        if (f.y > CW + 80) { flyingOut.splice(i, 1); continue; }
+        ctx.save();
+        ctx.translate(f.x, f.y); ctx.rotate(f.rot);
+        drawChessToken(0, 0, sq * 0.34, f.glyph, false);
+        ctx.restore();
+      }
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.22; p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 7, 7);
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    spawnWave(true);
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
