@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Beast Bracket Rumble!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="beast-bracket.css">
+</head>
+<body>
+  <div id="rumble-app">
+    <header>
+      <a href="index.html" class="nav-btn">🏠 Back</a>
+      <div class="cup-bar">
+        <button class="cup-btn active" data-cup="sharks">🦈 Sharks</button>
+        <button class="cup-btn" data-cup="jungle">🦁 Jungle</button>
+        <button class="cup-btn" data-cup="dinos">🦖 Dinos</button>
+        <button class="cup-btn" data-cup="chaos">🌪️ Chaos Crossover!</button>
+      </div>
+      <div class="trophy-pill">🏆 Crowns: <span id="crown-count">0</span></div>
+    </header>
+
+    <section class="bracket-strip">
+      <div class="b-side" id="bracket-left"></div>
+      <div class="b-center-cup" id="round-banner">QUARTERFINAL 1</div>
+      <div class="b-side" id="bracket-right"></div>
+    </section>
+
+    <main class="arena">
+      <div class="fighter-card" id="card-0">
+        <div class="portrait-box">
+          <canvas class="portrait-canvas" id="pcanvas-0" width="320" height="220"></canvas>
+          <span class="sound-tip" id="fact-btn-0">🔊 Fun Fact</span>
+        </div>
+        <div class="beast-name" id="name-0">Fighter 1</div>
+        <div class="stat-list" id="stats-0"></div>
+        <div class="pick-cta" id="cta-0">👈 PICK TO WIN!</div>
+      </div>
+
+      <div class="vs-column">
+        <div class="trait-badge">
+          <div style="font-size:12px;color:#94A3B8;font-weight:700;">ROUND CONTEST</div>
+          <div style="font-size:19px;color:#FDE047;font-weight:700;" id="trait-title">💪 POWER!</div>
+        </div>
+        <div class="vs-circle" id="vs-orb">VS</div>
+
+        <div class="tug-wrap" id="tug-wrap">
+          <div class="tug-bar"><div class="tug-fill" id="tug-fill"></div></div>
+          <button class="roar-btn" id="roar-btn">🔥 TAP TO BOOST!</button>
+        </div>
+      </div>
+
+      <div class="fighter-card" id="card-1">
+        <div class="portrait-box">
+          <canvas class="portrait-canvas" id="pcanvas-1" width="320" height="220"></canvas>
+          <span class="sound-tip" id="fact-btn-1">🔊 Fun Fact</span>
+        </div>
+        <div class="beast-name" id="name-1">Fighter 2</div>
+        <div class="stat-list" id="stats-1"></div>
+        <div class="pick-cta" id="cta-1">PICK TO WIN! 👉</div>
+      </div>
+    </main>
+  </div>
+
+  <div id="champ-modal">
+    <div class="champ-card">
+      <div style="font-size:56px;">👑🏆✨</div>
+      <div style="font-size:18px;color:#38BDF8;font-weight:700;" id="champ-sub">TOURNAMENT CHAMPION!</div>
+      <canvas id="champ-canvas" width="280" height="190" style="border-radius:20px;border:4px solid #FDE047;"></canvas>
+      <div style="font-size:38px;font-weight:700;color:#FDE047;" id="champ-name">T-REX!</div>
+      <button class="roar-btn" id="new-tourney-btn" style="animation:none;padding:12px 32px;width:auto;">🔄 New Tournament!</button>
+    </div>
+  </div>
+
+  <script src="beast-data.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 80, 250].forEach(ms => setTimeout(syncViewport, ms));
+
+    // Load 4x2 Division Sprite Grids (.jpeg, .jpg, or .png fallback!)
+    const SHEETS = {};
+    ['sharks', 'jungle', 'dinos'].forEach(key => {
+      const img = new Image();
+      const exts = [`images/${key}-grid.jpeg`, `images/${key}-grid.jpg`, `images/${key}-grid.png`, `${key}-grid.jpeg`];
+      let idx = 0;
+      img.onload = () => { SHEETS[key] = img; renderMatchCards(); };
+      img.onerror = () => { idx++; if (idx < exts.length) img.src = exts[idx]; };
+      img.src = exts[0];
+    });
+
+    const TRAITS = [
+      { key: 'pwr', label: '💪 MUSCLE & BITE!', spoken: 'Who has stronger muscle and bite?' },
+      { key: 'spd', label: '⚡ SUPER SPEED!',   spoken: 'Who is faster?' },
+      { key: 'def', label: '🛡️ TOUGH ARMOR!',   spoken: 'Who has tougher armor?' }
+    ];
+
+    let currentCup = isEmma ? 'jungle' : 'dinos';
+    let crowns = Number(localStorage.getItem('beastCrowns') || 0);
+    document.getElementById('crown-count').textContent = crowns;
+
+    // 8-Fighter Bracket State: qf (8), sf (4), fin (2), champ (1)
+    // Matches 0..3 = Quarterfinals, 4..5 = Semifinals, 6 = Championship Final!
+    let qf = [], sf = [null, null, null, null], fin = [null, null];
+    let matchIdx = 0;
+    let currentTrait = TRAITS[0];
+    let pickedSide = -1; // 0 = left, 1 = right
+    let clashing = false;
+    let tugPower = 50;   // 0..100 (>=50 means child's picked fighter wins!)
+    let clashTimer = null;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(txt) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(txt);
+      u.rate = 0.95; u.pitch = 1.08;
+      window.speechSynthesis.speak(u);
+    }
+
+    function playSound(f1, f2, dur = 0.18, type = 'sawtooth', vol = 0.22) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f1, now);
+      o.frequency.exponentialRampToValueAtTime(Math.max(35, f2), now + dur);
+      g.gain.setValueAtTime(vol, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(now); o.stop(now + dur);
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    // Draw Portrait from 4x2 Sprite Grid (or Vibrant Crest Fallback if image not added yet)
+    function drawBeastPortrait(canvasEl, beast) {
+      const c = canvasEl.getContext('2d');
+      const w = canvasEl.width, h = canvasEl.height;
+      c.clearRect(0, 0, w, h);
+
+      const sheet = beast.sheet ? SHEETS[beast.sheet] : null;
+      if (sheet && sheet.complete && sheet.naturalWidth > 0) {
+        const col = beast.cell % 4;
+        const row = Math.floor(beast.cell / 4);
+        const cellW = sheet.naturalWidth / 4;
+        const cellH = sheet.naturalHeight / 2;
+        // Crop 6% inner margin so grid borders never bleed in!
+        const padX = cellW * 0.06, padY = cellH * 0.06;
+        c.drawImage(
+          sheet,
+          col * cellW + padX, row * cellH + padY,
+          cellW - padX * 2, cellH - padY * 2,
+          0, 0, w, h
+        );
+      } else {
+        const grad = c.createRadialGradient(w / 2, h / 2, 15, w / 2, h / 2, w * 0.65);
+        grad.addColorStop(0, beast.color);
+        grad.addColorStop(1, '#090D16');
+        c.fillStyle = grad;
+        c.fillRect(0, 0, w, h);
+        c.font = '96px sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(beast.icon, w / 2, h / 2 + 4);
+      }
+    }
+
+    function getMatchPair(mIdx) {
+      if (mIdx < 4) return [qf[mIdx * 2], qf[mIdx * 2 + 1]];
+      if (mIdx < 6) return [sf[(mIdx - 4) * 2], sf[(mIdx - 4) * 2 + 1]];
+      return [fin[0], fin[1]];
+    }
+
+    function renderBracketTree() {
+      const leftEl = document.getElementById('bracket-left');
+      const rightEl = document.getElementById('bracket-right');
+
+      const slotHTML = (b, isCurr, isDoneWinner) => {
+        if (!b) return `<div class="b-slot">❔</div>`;
+        const cls = isCurr ? 'active-match' : (isDoneWinner ? 'won' : '');
+        return `<div class="b-slot ${cls}" title="${b.name}">${b.icon}</div>`;
+      };
+
+      // Left Half: QF 0 & 1 -> SF 0 -> FIN 0
+      leftEl.innerHTML = `
+        <div class="b-round">${slotHTML(qf[0], matchIdx===0, sf[0]===qf[0])}${slotHTML(qf[1], matchIdx===0, sf[0]===qf[1])}${slotHTML(qf[2], matchIdx===1, sf[1]===qf[2])}${slotHTML(qf[3], matchIdx===1, sf[1]===qf[3])}</div>
+        <span>➡️</span>
+        <div class="b-round">${slotHTML(sf[0], matchIdx===4, fin[0]===sf[0])}${slotHTML(sf[1], matchIdx===4, fin[0]===sf[1])}</div>
+        <span>➡️</span>
+        <div class="b-round">${slotHTML(fin[0], matchIdx===6, false)}</div>
+      `;
+
+      // Right Half: FIN 1 <- SF 1 <- QF 2 & 3
+      rightEl.innerHTML = `
+        <div class="b-round">${slotHTML(fin[1], matchIdx===6, false)}</div>
+        <span>⬅️</span>
+        <div class="b-round">${slotHTML(sf[2], matchIdx===5, fin[1]===sf[2])}${slotHTML(sf[3], matchIdx===5, fin[1]===sf[3])}</div>
+        <span>⬅️</span>
+        <div class="b-round">${slotHTML(qf[4], matchIdx===2, sf[2]===qf[4])}${slotHTML(qf[5], matchIdx===2, sf[2]===qf[5])}${slotHTML(qf[6], matchIdx===3, sf[3]===qf[6])}${slotHTML(qf[7], matchIdx===3, sf[3]===qf[7])}</div>
+      `;
+
+      const titles = ['QUARTERFINAL 1', 'QUARTERFINAL 2', 'QUARTERFINAL 3', 'QUARTERFINAL 4', 'SEMIFINAL 1', 'SEMIFINAL 2', '🏆 GRAND FINAL!'];
+      document.getElementById('round-banner').textContent = titles[matchIdx] || 'CHAMPION!';
+    }
+
+    function renderMatchCards() {
+      const [f0, f1] = getMatchPair(matchIdx);
+      if (!f0 || !f1) return;
+
+      [f0, f1].forEach((b, idx) => {
+        document.getElementById(`name-${idx}`).textContent = `${b.icon} ${b.name}`;
+        drawBeastPortrait(document.getElementById(`pcanvas-${idx}`), b);
+
+        const rows = [
+          { key: 'pwr', lbl: '💪 Power', val: b.pwr },
+          { key: 'spd', lbl: '⚡ Speed', val: b.spd },
+          { key: 'def', lbl: '🛡️ Armor', val: b.def }
+        ];
+        document.getElementById(`stats-${idx}`).innerHTML = rows.map(r => `
+          <div class="stat-row ${r.key === currentTrait.key ? 'highlight' : ''}">
+            <span>${r.lbl}</span>
+            <span>${'⭐'.repeat(r.val)}</span>
+          </div>
+        `).join('');
+
+        document.getElementById(`card-${idx}`).classList.remove('picked');
+        document.getElementById(`cta-${idx}`).style.display = 'block';
+      });
+    }
+
+    function setupMatch() {
+      clashing = false;
+      pickedSide = -1;
+      document.body.classList.remove('clash-shake');
+      document.getElementById('vs-orb').style.display = 'flex';
+      document.getElementById('tug-wrap').style.display = 'none';
+
+      currentTrait = TRAITS[Math.floor(Math.random() * TRAITS.length)];
+      document.getElementById('trait-title').textContent = currentTrait.label;
+
+      renderBracketTree();
+      renderMatchCards();
+
+      const [f0, f1] = getMatchPair(matchIdx);
+      speak(`${f0.name}, versus, ${f1.name}! ${currentTrait.spoken}`);
+    }
+
+    function startTournament(cupKey) {
+      currentCup = cupKey;
+      document.querySelectorAll('.cup-btn').forEach(b => b.classList.toggle('active', b.dataset.cup === cupKey));
+      document.getElementById('champ-modal').style.display = 'none';
+
+      if (cupKey === 'chaos') {
+        const pool = [...BEAST_ROSTER.sharks, ...BEAST_ROSTER.jungle, ...BEAST_ROSTER.dinos];
+        const hero = isEmma ? BEAST_ROSTER.wildcards[1] : BEAST_ROSTER.wildcards[0];
+        qf = shuffle([hero, ...shuffle(pool).slice(0, 7)]);
+      } else {
+        qf = shuffle(BEAST_ROSTER[cupKey]);
+      }
+      sf = [null, null, null, null];
+      fin = [null, null];
+      matchIdx = 0;
+      setupMatch();
+    }
+
+    // Pick Your Champion & Launch 3.2-Second Tap-to-Boost Clash!
+    function pickFighter(side) {
+      if (clashing) return;
+      clashing = true;
+      pickedSide = side;
+
+      const pair = getMatchPair(matchIdx);
+      const myBeast = pair[side];
+      const foeBeast = pair[1 - side];
+
+      document.getElementById(`card-${side}`).classList.add('picked');
+      document.getElementById('cta-0').style.display = 'none';
+      document.getElementById('cta-1').style.display = 'none';
+      document.getElementById('vs-orb').style.display = 'none';
+      document.getElementById('tug-wrap').style.display = 'flex';
+      document.body.classList.add('clash-shake');
+
+      // Base advantage from real animal science stat (higher stat starts ahead, underdog needs taps!)
+      const diff = myBeast[currentTrait.key] - foeBeast[currentTrait.key];
+      tugPower = Math.max(28, Math.min(78, 54 + diff * 9));
+      document.getElementById('tug-fill').style.width = `${tugPower}%`;
+
+      playSound(180, 95, 0.3, 'sawtooth', 0.28);
+
+      let elapsed = 0;
+      clashTimer = setInterval(() => {
+        elapsed += 100;
+        // Foe pushes back gently; stronger foes push harder!
+        const foePush = 1.3 + (foeBeast[currentTrait.key] - myBeast[currentTrait.key]) * 0.25;
+        tugPower = Math.max(8, Math.min(98, tugPower - foePush));
+        document.getElementById('tug-fill').style.width = `${tugPower}%`;
+
+        if (elapsed % 300 === 0) playSound(120 + tugPower * 2, 90, 0.09, 'triangle', 0.14);
+
+        if (elapsed >= 3000 || tugPower >= 96) {
+          clearInterval(clashTimer);
+          finishClash(tugPower >= 48 ? side : (1 - side));
+        }
+      }, 100);
+    }
+
+    document.getElementById('roar-btn').onpointerdown = (e) => {
+      e.stopPropagation();
+      if (!clashing) return;
+      tugPower = Math.min(98, tugPower + (isEmma ? 9.5 : 8.0));
+      document.getElementById('tug-fill').style.width = `${tugPower}%`;
+      playSound(320, 620, 0.11, 'square', 0.2);
+    };
+
+    function finishClash(winnerSide) {
+      document.body.classList.remove('clash-shake');
+      const pair = getMatchPair(matchIdx);
+      const winner = pair[winnerSide];
+
+      [440, 554.37, 659.25].forEach((f, i) => setTimeout(() => playSound(f, f * 1.02, 0.22, 'triangle', 0.25), i * 90));
+      speak(`${winner.name} wins!`);
+
+      if (matchIdx < 4) sf[matchIdx] = winner;
+      else if (matchIdx < 6) fin[matchIdx - 4] = winner;
+      else {
+        setTimeout(() => crownChampion(winner), 650);
+        return;
+      }
+
+      matchIdx++;
+      setTimeout(setupMatch, 900);
+    }
+
+    function crownChampion(champ) {
+      crowns++;
+      localStorage.setItem('beastCrowns', String(crowns));
+      document.getElementById('crown-count').textContent = crowns;
+
+      drawBeastPortrait(document.getElementById('champ-canvas'), champ);
+      document.getElementById('champ-name').textContent = `${champ.icon} ${champ.name}!`;
+      document.getElementById('champ-modal').style.display = 'flex';
+      speak(`Grand Champion, ${champ.name}!`);
+    }
+
+    // Card Clicks & Fun-Fact Speaker Buttons
+    [0, 1].forEach(side => {
+      document.getElementById(`card-${side}`).onpointerdown = () => {
+        if (clashing) {
+          // Tapping your picked card during clash also boosts!
+          if (side === pickedSide) document.getElementById('roar-btn').onpointerdown(new Event('pointerdown'));
+          return;
+        }
+        pickFighter(side);
+      };
+      document.getElementById(`fact-btn-${side}`).onpointerdown = (e) => {
+        e.stopPropagation();
+        const pair = getMatchPair(matchIdx);
+        if (pair[side]) speak(pair[side].fact);
+      };
+    });
+
+    document.querySelectorAll('.cup-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        if (clashTimer) clearInterval(clashTimer);
+        startTournament(btn.dataset.cup);
+      };
+    });
+
+    document.getElementById('new-tourney-btn').onpointerdown = () => startTournament(currentCup);
+
+    startTournament(currentCup);
+  </script>
+</body>
+</html>
