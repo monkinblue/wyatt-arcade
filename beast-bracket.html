@@ -29,18 +29,20 @@
     <main class="arena">
       <div class="fighter-card" id="card-0">
         <div class="portrait-box">
-          <canvas class="portrait-canvas" id="pcanvas-0" width="320" height="220"></canvas>
+          <canvas class="portrait-canvas" id="pcanvas-0" width="320" height="360"></canvas>
           <span class="sound-tip" id="fact-btn-0">🔊 Fun Fact</span>
         </div>
-        <div class="beast-name" id="name-0">Fighter 1</div>
-        <div class="stat-list" id="stats-0"></div>
-        <div class="pick-cta" id="cta-0">👈 PICK TO WIN!</div>
+        <div class="card-info">
+          <div class="beast-name" id="name-0">Fighter 1</div>
+          <div class="stat-list" id="stats-0"></div>
+          <div class="pick-cta" id="cta-0">👈 PICK ME!</div>
+        </div>
       </div>
 
       <div class="vs-column">
         <div class="trait-badge">
           <div style="font-size:12px;color:#94A3B8;font-weight:700;">ROUND CONTEST</div>
-          <div style="font-size:19px;color:#FDE047;font-weight:700;" id="trait-title">💪 POWER!</div>
+          <div style="font-size:20px;color:#FDE047;font-weight:700;" id="trait-title">💪 POWER!</div>
         </div>
         <div class="vs-circle" id="vs-orb">VS</div>
 
@@ -52,22 +54,24 @@
 
       <div class="fighter-card" id="card-1">
         <div class="portrait-box">
-          <canvas class="portrait-canvas" id="pcanvas-1" width="320" height="220"></canvas>
+          <canvas class="portrait-canvas" id="pcanvas-1" width="320" height="360"></canvas>
           <span class="sound-tip" id="fact-btn-1">🔊 Fun Fact</span>
         </div>
-        <div class="beast-name" id="name-1">Fighter 2</div>
-        <div class="stat-list" id="stats-1"></div>
-        <div class="pick-cta" id="cta-1">PICK TO WIN! 👉</div>
+        <div class="card-info">
+          <div class="beast-name" id="name-1">Fighter 2</div>
+          <div class="stat-list" id="stats-1"></div>
+          <div class="pick-cta" id="cta-1">PICK ME! 👉</div>
+        </div>
       </div>
     </main>
   </div>
 
   <div id="champ-modal">
     <div class="champ-card">
-      <div style="font-size:56px;">👑🏆✨</div>
-      <div style="font-size:18px;color:#38BDF8;font-weight:700;" id="champ-sub">TOURNAMENT CHAMPION!</div>
-      <canvas id="champ-canvas" width="280" height="190" style="border-radius:20px;border:4px solid #FDE047;"></canvas>
-      <div style="font-size:38px;font-weight:700;color:#FDE047;" id="champ-name">T-REX!</div>
+      <div style="font-size:46px;">👑🏆✨</div>
+      <div style="font-size:17px;color:#38BDF8;font-weight:700;" id="champ-sub">TOURNAMENT CHAMPION!</div>
+      <canvas id="champ-canvas" width="240" height="270" style="border-radius:16px;border:4px solid #FDE047;"></canvas>
+      <div style="font-size:36px;font-weight:700;color:#FDE047;" id="champ-name">T-REX!</div>
       <button class="roar-btn" id="new-tourney-btn" style="animation:none;padding:12px 32px;width:auto;">🔄 New Tournament!</button>
     </div>
   </div>
@@ -93,13 +97,20 @@
     if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
     [0, 80, 250].forEach(ms => setTimeout(syncViewport, ms));
 
-    // Load 4x2 Division Sprite Grids (.jpeg, .jpg, or .png fallback!)
+    // Load 4x2 Division Sprite Grids (.jpg, .jpeg, or .png automatic detection)
     const SHEETS = {};
     ['sharks', 'jungle', 'dinos'].forEach(key => {
       const img = new Image();
-      const exts = [`images/${key}-grid.jpeg`, `images/${key}-grid.jpg`, `images/${key}-grid.png`, `${key}-grid.jpeg`];
+      const exts = [
+        `images/${key}-grid.jpg`, `images/${key}-grid.jpeg`, `images/${key}-grid.png`,
+        `${key}-grid.jpg`, `${key}-grid.jpeg`, `${key}-grid.png`
+      ];
       let idx = 0;
-      img.onload = () => { SHEETS[key] = img; renderMatchCards(); };
+      img.onload = () => {
+        SHEETS[key] = img;
+        renderBracketTree();
+        renderMatchCards();
+      };
       img.onerror = () => { idx++; if (idx < exts.length) img.src = exts[idx]; };
       img.src = exts[0];
     });
@@ -114,14 +125,12 @@
     let crowns = Number(localStorage.getItem('beastCrowns') || 0);
     document.getElementById('crown-count').textContent = crowns;
 
-    // 8-Fighter Bracket State: qf (8), sf (4), fin (2), champ (1)
-    // Matches 0..3 = Quarterfinals, 4..5 = Semifinals, 6 = Championship Final!
     let qf = [], sf = [null, null, null, null], fin = [null, null];
     let matchIdx = 0;
     let currentTrait = TRAITS[0];
-    let pickedSide = -1; // 0 = left, 1 = right
+    let pickedSide = -1;
     let clashing = false;
-    let tugPower = 50;   // 0..100 (>=50 means child's picked fighter wins!)
+    let tugPower = 50;
     let clashTimer = null;
     let audioCtx = null;
 
@@ -160,7 +169,7 @@
       return a;
     }
 
-    // Draw Portrait from 4x2 Sprite Grid (or Vibrant Crest Fallback if image not added yet)
+    // Exact 8:9 Full-Card Slicer — Preserves 100% of Animal + Ornate Pixel Card Border!
     function drawBeastPortrait(canvasEl, beast) {
       const c = canvasEl.getContext('2d');
       const w = canvasEl.width, h = canvasEl.height;
@@ -172,8 +181,9 @@
         const row = Math.floor(beast.cell / 4);
         const cellW = sheet.naturalWidth / 4;
         const cellH = sheet.naturalHeight / 2;
-        // Crop 6% inner margin so grid borders never bleed in!
-        const padX = cellW * 0.06, padY = cellH * 0.06;
+        // Trim only the tiny 0.8% dark gutter between cards so the full ornate border & beast show!
+        const padX = cellW * 0.008;
+        const padY = cellH * 0.010;
         c.drawImage(
           sheet,
           col * cellW + padX, row * cellH + padY,
@@ -186,7 +196,7 @@
         grad.addColorStop(1, '#090D16');
         c.fillStyle = grad;
         c.fillRect(0, 0, w, h);
-        c.font = '96px sans-serif';
+        c.font = `${Math.round(w * 0.42)}px sans-serif`;
         c.textAlign = 'center';
         c.textBaseline = 'middle';
         c.fillText(beast.icon, w / 2, h / 2 + 4);
@@ -202,14 +212,16 @@
     function renderBracketTree() {
       const leftEl = document.getElementById('bracket-left');
       const rightEl = document.getElementById('bracket-right');
+      const thumbQueue = [];
 
       const slotHTML = (b, isCurr, isDoneWinner) => {
         if (!b) return `<div class="b-slot">❔</div>`;
         const cls = isCurr ? 'active-match' : (isDoneWinner ? 'won' : '');
-        return `<div class="b-slot ${cls}" title="${b.name}">${b.icon}</div>`;
+        const cid = `bthumb-${thumbQueue.length}`;
+        thumbQueue.push({ cid, beast: b });
+        return `<div class="b-slot ${cls}" title="${b.name}"><canvas id="${cid}" width="64" height="72"></canvas></div>`;
       };
 
-      // Left Half: QF 0 & 1 -> SF 0 -> FIN 0
       leftEl.innerHTML = `
         <div class="b-round">${slotHTML(qf[0], matchIdx===0, sf[0]===qf[0])}${slotHTML(qf[1], matchIdx===0, sf[0]===qf[1])}${slotHTML(qf[2], matchIdx===1, sf[1]===qf[2])}${slotHTML(qf[3], matchIdx===1, sf[1]===qf[3])}</div>
         <span>➡️</span>
@@ -218,7 +230,6 @@
         <div class="b-round">${slotHTML(fin[0], matchIdx===6, false)}</div>
       `;
 
-      // Right Half: FIN 1 <- SF 1 <- QF 2 & 3
       rightEl.innerHTML = `
         <div class="b-round">${slotHTML(fin[1], matchIdx===6, false)}</div>
         <span>⬅️</span>
@@ -226,6 +237,11 @@
         <span>⬅️</span>
         <div class="b-round">${slotHTML(qf[4], matchIdx===2, sf[2]===qf[4])}${slotHTML(qf[5], matchIdx===2, sf[2]===qf[5])}${slotHTML(qf[6], matchIdx===3, sf[3]===qf[6])}${slotHTML(qf[7], matchIdx===3, sf[3]===qf[7])}</div>
       `;
+
+      thumbQueue.forEach(item => {
+        const el = document.getElementById(item.cid);
+        if (el) drawBeastPortrait(el, item.beast);
+      });
 
       const titles = ['QUARTERFINAL 1', 'QUARTERFINAL 2', 'QUARTERFINAL 3', 'QUARTERFINAL 4', 'SEMIFINAL 1', 'SEMIFINAL 2', '🏆 GRAND FINAL!'];
       document.getElementById('round-banner').textContent = titles[matchIdx] || 'CHAMPION!';
@@ -236,7 +252,7 @@
       if (!f0 || !f1) return;
 
       [f0, f1].forEach((b, idx) => {
-        document.getElementById(`name-${idx}`).textContent = `${b.icon} ${b.name}`;
+        document.getElementById(`name-${idx}`).textContent = b.name;
         drawBeastPortrait(document.getElementById(`pcanvas-${idx}`), b);
 
         const rows = [
@@ -246,8 +262,7 @@
         ];
         document.getElementById(`stats-${idx}`).innerHTML = rows.map(r => `
           <div class="stat-row ${r.key === currentTrait.key ? 'highlight' : ''}">
-            <span>${r.lbl}</span>
-            <span>${'⭐'.repeat(r.val)}</span>
+            <div class="s-top"><span>${r.lbl}</span><span>${'⭐'.repeat(r.val)}</span></div>
           </div>
         `).join('');
 
@@ -291,7 +306,6 @@
       setupMatch();
     }
 
-    // Pick Your Champion & Launch 3.2-Second Tap-to-Boost Clash!
     function pickFighter(side) {
       if (clashing) return;
       clashing = true;
@@ -308,7 +322,6 @@
       document.getElementById('tug-wrap').style.display = 'flex';
       document.body.classList.add('clash-shake');
 
-      // Base advantage from real animal science stat (higher stat starts ahead, underdog needs taps!)
       const diff = myBeast[currentTrait.key] - foeBeast[currentTrait.key];
       tugPower = Math.max(28, Math.min(78, 54 + diff * 9));
       document.getElementById('tug-fill').style.width = `${tugPower}%`;
@@ -318,7 +331,6 @@
       let elapsed = 0;
       clashTimer = setInterval(() => {
         elapsed += 100;
-        // Foe pushes back gently; stronger foes push harder!
         const foePush = 1.3 + (foeBeast[currentTrait.key] - myBeast[currentTrait.key]) * 0.25;
         tugPower = Math.max(8, Math.min(98, tugPower - foePush));
         document.getElementById('tug-fill').style.width = `${tugPower}%`;
@@ -370,11 +382,9 @@
       speak(`Grand Champion, ${champ.name}!`);
     }
 
-    // Card Clicks & Fun-Fact Speaker Buttons
     [0, 1].forEach(side => {
       document.getElementById(`card-${side}`).onpointerdown = () => {
         if (clashing) {
-          // Tapping your picked card during clash also boosts!
           if (side === pickedSide) document.getElementById('roar-btn').onpointerdown(new Event('pointerdown'));
           return;
         }
