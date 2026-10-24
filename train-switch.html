@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Switchyard Express!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="train-switch.css">
+</head>
+<body>
+  <div id="train-app">
+    <header>
+      <a href="index.html" class="nav-btn">🏠 Back</a>
+      <div class="mode-bar">
+        <button class="mode-btn" data-mode="shapes">🎨 Shapes</button>
+        <button class="mode-btn" data-mode="numbers">🔢 Count</button>
+        <button class="mode-btn" data-mode="words">🔤 Word Train</button>
+        <button class="mode-btn" data-mode="free">🚂 Free Play</button>
+      </div>
+      <div class="score-pill">🚃 <span id="car-count">1</span> Cars • ⭐ <span id="score-val">0</span></div>
+    </header>
+
+    <main class="cockpit">
+      <aside class="side-panel">
+        <div class="panel-label">THROTTLE</div>
+        <button class="gear-btn" data-gear="2"><span class="g-icon">🔥</span>TURBO</button>
+        <button class="gear-btn active" data-gear="1"><span class="g-icon">🚂</span>CHUG</button>
+        <button class="gear-btn" data-gear="0"><span class="g-icon">🛑</span>STOP</button>
+        <button class="gear-btn" data-gear="-1"><span class="g-icon">⏪</span>BACK</button>
+      </aside>
+
+      <section class="table-wrap">
+        <div class="mission-banner" id="mission-banner" title="Tap to hear instructions!">Tap glowing 🔄 switches to steer the train!</div>
+        <canvas id="rail-canvas"></canvas>
+      </section>
+
+      <aside class="side-panel">
+        <div class="cargo-box">
+          <div class="panel-label" id="goal-label">NEXT GOAL</div>
+          <div class="cargo-badge" id="goal-badge">⭐</div>
+        </div>
+        <button class="whistle-btn" id="whistle-btn">
+          <span style="font-size:44px;">📯</span>
+          <span>TOOT!</span>
+          <span style="font-size:12px;opacity:0.9;">Shoo Critters!</span>
+        </button>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 80, 250].forEach(ms => setTimeout(syncViewport, ms));
+
+    const CW = 900, CH = 520;
+    const canvas = document.getElementById('rail-canvas');
+    canvas.width = CW; canvas.height = CH;
+    const ctx = canvas.getContext('2d');
+
+    // Optional Hi-Bit Pixel Art Tabletop Background Loader
+    const bgImg = new Image();
+    let bgReady = false;
+    const bgCandidates = ['images/train-valley.jpeg', 'images/train-valley.jpg', 'images/train-valley.png'];
+    let bgTry = 0;
+    bgImg.onload = () => { bgReady = true; };
+    bgImg.onerror = () => {
+      bgTry += 1;
+      if (bgTry < bgCandidates.length) bgImg.src = bgCandidates[bgTry];
+    };
+    bgImg.src = bgCandidates[0];
+
+    // Track Nodes & Segments (Closed Outer Loop + 2 Switch Crossovers + 4 Colorful Stations!)
+    // Nodes: 0..5 around loop, Stations sit on dedicated spurs/segments!
+    const NODES = [
+      { x: 230, y: 92 },  // 0: Top-Left Switch -> Top Main (1) or Siding Red Barn (6 -> 1)
+      { x: 670, y: 92 },  // 1: Top-Right Merge / Switch -> Right Curve (2) or Center Diagonal (4)
+      { x: 790, y: 260 }, // 2: Right Mid -> Bottom-Right (3)
+      { x: 670, y: 428 }, // 3: Bottom-Right Switch -> Bottom Main (4) or Siding Gold Bakery (7 -> 4)
+      { x: 230, y: 428 }, // 4: Bottom-Left Merge / Switch -> Left Curve (5) or Center Up (1)
+      { x: 110, y: 260 }  // 5: Left Mid -> Top-Left (0)
+    ];
+
+    // Directed Track Edges (Bidirectional via reverse lookups!)
+    // Every edge has control points for smooth Bezier railroad curves
+    const EDGES = [
+      { id: 0, from: 5, to: 0, cp: { x: 110, y: 92 } },                         // Left-Up Curve (Blue Dock)
+      { id: 1, from: 0, to: 1, cp: { x: 450, y: 92 }, label: 'Main' },          // Top Straight
+      { id: 2, from: 0, to: 1, cp: { x: 450, y: 195 }, label: 'Red Siding' },   // Top Dip Siding (Red Quarry)
+      { id: 3, from: 1, to: 2, cp: { x: 790, y: 92 } },                         // Top-Right Curve
+      { id: 4, from: 1, to: 4, cp: { x: 450, y: 260 }, label: 'Bridge Cut' },   // Center River Bridge Shortcut!
+      { id: 5, from: 2, to: 3, cp: { x: 790, y: 428 } },                        // Bottom-Right Curve (Green Mill)
+      { id: 6, from: 3, to: 4, cp: { x: 450, y: 428 }, label: 'Main' },         // Bottom Straight
+      { id: 7, from: 3, to: 4, cp: { x: 450, y: 325 }, label: 'Gold Siding' },  // Bottom Arch Siding (Gold Bakery)
+      { id: 8, from: 4, to: 5, cp: { x: 110, y: 428 } }                         // Bottom-Left Curve
+    ];
+
+    // 4 Interactive Track Switches! Tap on canvas to flip branch 0 <-> 1
+    const SWITCHES = [
+      { node: 0, dir: 'fwd', options: [1, 2], activeIdx: 0, x: 230, y: 92 },   // Top-Left: Straight vs Red Siding
+      { node: 1, dir: 'fwd', options: [3, 4], activeIdx: 0, x: 670, y: 92 },   // Top-Right: Outer Loop vs Center Bridge
+      { node: 3, dir: 'fwd', options: [6, 7], activeIdx: 0, x: 670, y: 428 },  // Bottom-Right: Straight vs Gold Siding
+      { node: 4, dir: 'bwd', options: [1, 2], activeIdx: 0, x: 230, y: 428 }   // Visual Bottom-Left Junction
+    ];
+    // Reverse-direction switch choices so backing up never hits a dead end
+    const REV_SWITCH = { 1: [1, 2], 4: [6, 7] };
+
+    const STATIONS = [
+      { id: 'red',   name: 'Red Barn',    color: '#EF4444', shape: '❤️', edgeId: 2, t: 0.5, roofX: 450, roofY: 192 },
+      { id: 'green', name: 'Green Mill',  color: '#10B981', shape: '🍀', edgeId: 5, t: 0.5, roofX: 815, roofY: 355 },
+      { id: 'gold',  name: 'Gold Bakery', color: '#F59E0B', shape: '⭐', edgeId: 7, t: 0.5, roofX: 450, roofY: 322 },
+      { id: 'blue',  name: 'Blue Harbor', color: '#3B82F6', shape: '💎', edgeId: 0, t: 0.5, roofX: 88,  roofY: 165 }
+    ];
+
+    // Pre-sample dense points along every quadratic Bezier track segment
+    EDGES.forEach(e => {
+      const p0 = NODES[e.from], p1 = e.cp, p2 = NODES[e.to];
+      e.pts = [];
+      let len = 0;
+      for (let i = 0; i <= 80; i++) {
+        const t = i / 80;
+        const mt = 1 - t;
+        const x = mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x;
+        const y = mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y;
+        if (i > 0) len += Math.hypot(x - e.pts[i - 1].x, y - e.pts[i - 1].y);
+        e.pts.push({ x, y, d: len });
+      }
+      e.length = len;
+    });
+
+    function sampleEdge(edgeId, dist) {
+      const e = EDGES[edgeId];
+      const clamped = Math.max(0, Math.min(e.length, dist));
+      for (let i = 1; i < e.pts.length; i++) {
+        if (e.pts[i].d >= clamped) {
+          const a = e.pts[i - 1], b = e.pts[i];
+          const f = (clamped - a.d) / Math.max(0.001, b.d - a.d);
+          return {
+            x: a.x + (b.x - a.x) * f,
+            y: a.y + (b.y - a.y) * f,
+            angle: Math.atan2(b.y - a.y, b.x - a.x)
+          };
+        }
+      }
+      const last = e.pts[e.pts.length - 1];
+      return { x: last.x, y: last.y, angle: 0 };
+    }
+
+    let gameMode = isEmma ? 'shapes' : 'words';
+    let gear = 1; // 2=Turbo, 1=Chug, 0=Stop, -1=Reverse
+    let score = 0;
+    let curEdge = 1;
+    let curDist = 80;
+    let trailHistory = []; // Stores breadcrumb path so all train cars follow true curves!
+    let cars = [{ color: isEmma ? '#F472B6' : '#10B981', label: isEmma ? '🐶' : '🐉' }];
+
+    // Mission & Track Items State
+    const WORD_LIST = [isEmma ? 'EMMA' : 'WYATT', isEmma ? 'WYATT' : 'EMMA', 'TRAIN', 'DOG', 'CAT', 'STAR'];
+    let wordIdx = 0;
+    let wordLetterIdx = 0;
+    let heldCargo = null;
+    let pickupItem = null;
+    let targetStation = null;
+    let critter = null; // Silly cow/sheep/frog sitting on tracks waiting for TOOT!
+    let smoke = [];
+    let rings = [];
+    let confetti = [];
+    let tick = 0;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(txt) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(txt);
+      u.rate = 0.94; u.pitch = 1.1;
+      window.speechSynthesis.speak(u);
+    }
+
+    function playTone(f1, f2, dur = 0.16, type = 'triangle', vol = 0.22) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f1, now);
+      o.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+      g.gain.setValueAtTime(vol, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(now); o.stop(now + dur);
+    }
+
+    function playWhistle() {
+      initAudio();
+      [587.33, 739.99, 880].forEach(f => {
+        playTone(f, f * 0.99, 0.45, 'triangle', 0.18);
+      });
+    }
+
+    function spawnConfetti(x, y, color) {
+      for (let i = 0; i < 24; i++) {
+        const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 6;
+        confetti.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 2, color: i % 2 ? '#FDE047' : color, life: 34 });
+      }
+    }
+
+    // Mission Generator
+    function setupMission(announce = true) {
+      heldCargo = null;
+      pickupItem = null;
+      targetStation = null;
+
+      if (gameMode === 'free') {
+        document.getElementById('mission-banner').textContent = '🚂 Free Play! Flip switches, reverse & blow the whistle!';
+        document.getElementById('goal-label').textContent = 'SANDBOX';
+        document.getElementById('goal-badge').textContent = '🚂';
+        document.getElementById('goal-badge').style.background = '#1E293B';
+        return;
+      }
+
+      if (gameMode === 'shapes') {
+        const st = STATIONS[Math.floor(Math.random() * STATIONS.length)];
+        targetStation = st;
+        const spawnEdges = [1, 4, 6, 8].filter(id => id !== curEdge);
+        const pEdge = spawnEdges[Math.floor(Math.random() * spawnEdges.length)];
+        pickupItem = { edgeId: pEdge, dist: EDGES[pEdge].length * 0.5, label: st.shape, color: st.color };
+        document.getElementById('mission-banner').textContent = `Pick up ${st.shape} on the tracks, then steer to ${st.name}!`;
+        document.getElementById('goal-label').textContent = 'PICK UP';
+        document.getElementById('goal-badge').textContent = st.shape;
+        document.getElementById('goal-badge').style.background = st.color;
+        if (announce) speak(`Pick up ${st.name.split(' ')[0]} cargo!`);
+      } else if (gameMode === 'numbers') {
+        const num = (isEmma ? 1 : 2) + Math.floor(Math.random() * (isEmma ? 5 : 8));
+        const st = STATIONS[Math.floor(Math.random() * STATIONS.length)];
+        targetStation = st;
+        const pEdge = [1, 4, 6, 8][Math.floor(Math.random() * 4)];
+        pickupItem = { edgeId: pEdge, dist: EDGES[pEdge].length * 0.5, label: String(num), color: st.color, num };
+        document.getElementById('mission-banner').textContent = `Pick up Crate #${num} & deliver to ${st.name}!`;
+        document.getElementById('goal-label').textContent = `CRATE #${num}`;
+        document.getElementById('goal-badge').textContent = num;
+        document.getElementById('goal-badge').style.background = st.color;
+        if (announce) speak(`Number ${num} to the ${st.name}!`);
+      } else if (gameMode === 'words') {
+        const word = WORD_LIST[wordIdx % WORD_LIST.length];
+        const ch = word[wordLetterIdx];
+        const candidateEdges = [1, 2, 4, 5, 6, 7, 8].filter(id => id !== curEdge);
+        const pEdge = candidateEdges[Math.floor(Math.random() * candidateEdges.length)];
+        const color = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#A855F7'][wordLetterIdx % 5];
+        pickupItem = { edgeId: pEdge, dist: EDGES[pEdge].length * 0.5, label: ch, color, isLetter: true };
+        document.getElementById('mission-banner').textContent = `Spell ${word}: Steer to collect Letter "${ch}"!`;
+        document.getElementById('goal-label').textContent = word;
+        document.getElementById('goal-badge').textContent = ch;
+        document.getElementById('goal-badge').style.background = color;
+        if (announce) speak(ch);
+      }
+    }
+
+    function maybeSpawnCritter() {
+      if (critter || Math.random() > 0.004) return;
+      const eId = [1, 4, 6][Math.floor(Math.random() * 3)];
+      if (eId === curEdge) return;
+      const types = [
+        { icon: '🐄', sound: 'Moo!' },
+        { icon: '🐑', sound: 'Baa!' },
+        { icon: '🐸', sound: 'Ribbit!' }
+      ];
+      const c = types[Math.floor(Math.random() * types.length)];
+      critter = { edgeId: eId, dist: EDGES[eId].length * 0.5, ...c, shooing: false, vx: 0, vy: 0 };
+    }
+
+    // Controls: Mode Bar, Gear Throttle, Whistle & Switch Taps
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === gameMode);
+      btn.onpointerdown = () => {
+        gameMode = btn.dataset.mode;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        cars = [cars[0]];
+        wordLetterIdx = 0;
+        document.getElementById('car-count').textContent = cars.length;
+        setupMission(true);
+      };
+    });
+
+    document.querySelectorAll('.gear-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        gear = Number(btn.dataset.gear);
+        document.querySelectorAll('.gear-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        playTone(gear === -1 ? 260 : 380, gear === 0 ? 180 : 520, 0.12);
+      };
+    });
+
+    const whistleBtn = document.getElementById('whistle-btn');
+    whistleBtn.onpointerdown = () => {
+      whistleBtn.classList.add('pulling');
+      setTimeout(() => whistleBtn.classList.remove('pulling'), 220);
+      playWhistle();
+      const head = sampleEdge(curEdge, curDist);
+      rings.push({ x: head.x, y: head.y, r: 12, alpha: 1 });
+      if (critter && !critter.shooing) {
+        critter.shooing = true;
+        critter.vy = -5.5;
+        critter.vx = 3.5;
+        speak(critter.sound);
+      }
+    };
+
+    document.getElementById('mission-banner').onpointerdown = () => {
+      speak(document.getElementById('mission-banner').textContent);
+    };
+
+    canvas.addEventListener('pointerdown', (e) => {
+      const r = canvas.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width) * CW;
+      const y = ((e.clientY - r.top) / r.height) * CH;
+
+      for (const sw of SWITCHES) {
+        if (Math.hypot(x - sw.x, y - sw.y) <= 48) {
+          sw.activeIdx = (sw.activeIdx + 1) % sw.options.length;
+          playTone(320, 680, 0.09, 'square', 0.2);
+          spawnConfetti(sw.x, sw.y, '#FDE047');
+          return;
+        }
+      }
+    });
+
+    // Advance Train Along Graph (Supports Forward AND Reverse Seamlessly!)
+    function nextForwardEdge(atNode) {
+      const sw = SWITCHES.find(s => s.node === atNode && s.dir === 'fwd');
+      if (sw) return sw.options[sw.activeIdx];
+      const match = EDGES.find(e => e.from === atNode);
+      return match ? match.id : 1;
+    }
+
+    function nextBackwardEdge(atNode) {
+      if (atNode === 4) {
+        const sw = SWITCHES.find(s => s.node === 3);
+        return sw ? sw.options[sw.activeIdx] : 6;
+      }
+      if (atNode === 1) {
+        const sw = SWITCHES.find(s => s.node === 0);
+        return sw ? sw.options[sw.activeIdx] : 1;
+      }
+      const match = EDGES.find(e => e.to === atNode);
+      return match ? match.id : 8;
+    }
+
+    function updateTrain() {
+      maybeSpawnCritter();
+
+      // Check if sleepy critter is blocking right in front of locomotive!
+      let blockedByCritter = false;
+      if (critter && !critter.shooing && critter.edgeId === curEdge && Math.abs(critter.dist - curDist) < 52) {
+        blockedByCritter = true;
+        if (tick % 45 === 0) playTone(210, 165, 0.14, 'sawtooth', 0.15);
+      }
+
+      const speed = blockedByCritter && gear > 0 ? 0 : (gear === 2 ? 3.5 : (gear === 1 ? 2.0 : (gear === -1 ? -1.8 : 0)));
+
+      if (speed !== 0) {
+        curDist += speed;
+        while (curDist > EDGES[curEdge].length) {
+          const overflow = curDist - EDGES[curEdge].length;
+          const endNode = EDGES[curEdge].to;
+          curEdge = nextForwardEdge(endNode);
+          curDist = overflow;
+        }
+        while (curDist < 0) {
+          const underflow = -curDist;
+          const startNode = EDGES[curEdge].from;
+          curEdge = nextBackwardEdge(startNode);
+          curDist = EDGES[curEdge].length - underflow;
+        }
+
+        const pos = sampleEdge(curEdge, curDist);
+        if (speed > 0) {
+          trailHistory.unshift({ x: pos.x, y: pos.y, angle: pos.angle });
+          if (trailHistory.length > 420) trailHistory.pop();
+        } else if (trailHistory.length > 2) {
+          trailHistory.shift();
+        }
+
+        if (tick % (gear === 2 ? 6 : 11) === 0) {
+          smoke.push({ x: pos.x, y: pos.y, r: 7, alpha: 0.75 });
+        }
+      }
+
+      const head = sampleEdge(curEdge, curDist);
+
+      // Check Cargo / Letter Pickup!
+      if (pickupItem) {
+        const itemPos = sampleEdge(pickupItem.edgeId, pickupItem.dist);
+        if (Math.hypot(head.x - itemPos.x, head.y - itemPos.y) < 38) {
+          playTone(523.25, 880, 0.2, 'triangle', 0.28);
+          spawnConfetti(itemPos.x, itemPos.y, pickupItem.color);
+
+          if (pickupItem.isLetter) {
+            cars.push({ color: pickupItem.color, label: pickupItem.label });
+            score += 25;
+            document.getElementById('car-count').textContent = cars.length;
+            document.getElementById('score-val').textContent = score;
+
+            const word = WORD_LIST[wordIdx % WORD_LIST.length];
+            wordLetterIdx++;
+            if (wordLetterIdx >= word.length) {
+              speak(`${word}!`);
+              playWhistle();
+              score += 100;
+              document.getElementById('score-val').textContent = score;
+              wordIdx++;
+              wordLetterIdx = 0;
+              setTimeout(() => {
+                cars = [cars[0]];
+                document.getElementById('car-count').textContent = 1;
+                setupMission(true);
+              }, 1300);
+              pickupItem = null;
+            } else {
+              setupMission(true);
+            }
+          } else {
+            heldCargo = pickupItem;
+            pickupItem = null;
+            document.getElementById('goal-label').textContent = 'DELIVER TO';
+            document.getElementById('mission-banner').textContent = `Great! Now flip switches to deliver ${heldCargo.label} to ${targetStation.name}!`;
+            speak(`Take it to ${targetStation.name}!`);
+          }
+        }
+      }
+
+      // Check Station Delivery!
+      if (heldCargo && targetStation) {
+        const stPos = sampleEdge(targetStation.edgeId, EDGES[targetStation.edgeId].length * targetStation.t);
+        if (Math.hypot(head.x - stPos.x, head.y - stPos.y) < 42) {
+          playWhistle();
+          score += 50;
+          cars.push({ color: heldCargo.color, label: heldCargo.label });
+          if (cars.length > 7) cars.splice(1, 1);
+          document.getElementById('car-count').textContent = cars.length;
+          document.getElementById('score-val').textContent = score;
+          spawnConfetti(stPos.x, stPos.y, targetStation.color);
+          speak('Delivered!');
+          setupMission(false);
+        }
+      }
+    }
+
+    // Seed initial trail so train renders cleanly at frame 0
+    for (let i = 80; i >= 0; i -= 2) {
+      const p = sampleEdge(1, i);
+      trailHistory.push({ x: p.x, y: p.y, angle: p.angle });
+    }
+
+    function drawTrackEdge(e, highlight) {
+      const p0 = NODES[e.from], p1 = e.cp, p2 = NODES[e.to];
+      ctx.save();
+      // Wooden Crossties
+      ctx.strokeStyle = '#5C3A21';
+      ctx.lineWidth = 22;
+      ctx.setLineDash([6, 11]);
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.quadraticCurveTo(p1.x, p1.y, p2.x, p2.y);
+      ctx.stroke();
+
+      // Steel Rails
+      ctx.setLineDash([]);
+      ctx.strokeStyle = highlight ? '#FDE047' : '#CBD5E1';
+      ctx.lineWidth = highlight ? 11 : 9;
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.quadraticCurveTo(p1.x, p1.y, p2.x, p2.y);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.quadraticCurveTo(p1.x, p1.y, p2.x, p2.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function render() {
+      tick++;
+      updateTrain();
+      ctx.clearRect(0, 0, CW, CH);
+
+      // 1. Background Painting or Lush River Valley Tabletop
+      if (bgReady) {
+        ctx.drawImage(bgImg, 0, 0, CW, CH);
+      } else {
+        ctx.fillStyle = '#2E6F40';
+        ctx.fillRect(0, 0, CW, CH);
+        // Sparkling Winding River under the Center Bridge
+        ctx.strokeStyle = '#38BDF8';
+        ctx.lineWidth = 52;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(540, -20);
+        ctx.bezierCurveTo(500, 180, 400, 340, 350, 540);
+        ctx.stroke();
+      }
+
+      // 2. Determine Active Switch Edges to Highlight Selected Route
+      const activeSwitchEdges = new Set(SWITCHES.map(sw => sw.options[sw.activeIdx]));
+      EDGES.forEach(e => drawTrackEdge(e, activeSwitchEdges.has(e.id)));
+
+      // 3. Draw 4 Station Depots
+      STATIONS.forEach(st => {
+        const isTarget = targetStation && targetStation.id === st.id;
+        const pulse = isTarget ? Math.sin(tick * 0.16) * 5 : 0;
+        ctx.save();
+        ctx.translate(st.roofX, st.roofY);
+        ctx.fillStyle = st.color;
+        ctx.strokeStyle = isTarget ? '#FDE047' : '#FFF';
+        ctx.lineWidth = isTarget ? 5 : 3;
+        ctx.beginPath();
+        ctx.roundRect(-42 - pulse / 2, -26 - pulse / 2, 84 + pulse, 52 + pulse, 14);
+        ctx.fill(); ctx.stroke();
+        ctx.font = 'bold 14px Fredoka, sans-serif';
+        ctx.fillStyle = '#FFF';
+        ctx.textAlign = 'center';
+        ctx.fillText(st.shape + ' ' + st.name.split(' ')[0], 0, 5);
+        ctx.restore();
+      });
+
+      // 4. Draw Tappable Track Switch Circles
+      SWITCHES.slice(0, 3).forEach(sw => {
+        const chosenEdge = EDGES[sw.options[sw.activeIdx]];
+        const sample = sampleEdge(chosenEdge.id, 38);
+        const ang = Math.atan2(sample.y - sw.y, sample.x - sw.x);
+
+        ctx.save();
+        ctx.translate(sw.x, sw.y);
+        ctx.beginPath();
+        ctx.arc(0, 0, 26, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#FDE047';
+        ctx.stroke();
+
+        ctx.rotate(ang);
+        ctx.fillStyle = '#06D6A0';
+        ctx.beginPath();
+        ctx.moveTo(15, 0); ctx.lineTo(-8, -11); ctx.lineTo(-4, 0); ctx.lineTo(-8, 11);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // 5. Draw Track Pickup Cargo / Letter Orb
+      if (pickupItem) {
+        const p = sampleEdge(pickupItem.edgeId, pickupItem.dist);
+        const bob = Math.sin(tick * 0.14) * 5;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + bob, 24, 0, Math.PI * 2);
+        ctx.fillStyle = pickupItem.color;
+        ctx.fill();
+        ctx.lineWidth = 4; ctx.strokeStyle = '#FFF'; ctx.stroke();
+        ctx.font = 'bold 24px Fredoka, sans-serif';
+        ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(pickupItem.label, p.x, p.y + bob);
+        ctx.restore();
+      }
+
+      // 6. Draw Sleepy Track Critter
+      if (critter) {
+        const cp = sampleEdge(critter.edgeId, critter.dist);
+        if (critter.shooing) {
+          critter.x = (critter.x || cp.x) + critter.vx;
+          critter.y = (critter.y || cp.y) + critter.vy;
+          critter.vy += 0.25;
+          if (critter.y > CH + 50 || critter.x > CW + 50) critter = null;
+        }
+        if (critter) {
+          ctx.font = '38px sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(critter.icon, critter.x || cp.x, critter.y || cp.y);
+          if (!critter.shooing) {
+            ctx.font = 'bold 15px Fredoka, sans-serif';
+            ctx.fillStyle = '#FDE047';
+            ctx.fillText('💤 TOOT!', cp.x, cp.y - 28);
+          }
+        }
+      }
+
+      // 7. Draw Train Cars + Locomotive Following Breadcrumb Trail
+      for (let c = cars.length - 1; c >= 0; c--) {
+        const histIdx = Math.min(trailHistory.length - 1, c * 22);
+        const pt = trailHistory[histIdx] || sampleEdge(curEdge, curDist);
+        const car = cars[c];
+
+        ctx.save();
+        ctx.translate(pt.x, pt.y);
+        ctx.rotate(pt.angle);
+        ctx.fillStyle = c === 0 ? '#EF4444' : car.color;
+        ctx.strokeStyle = '#FFF';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.roundRect(-22, -15, 44, 30, 9);
+        ctx.fill(); ctx.stroke();
+
+        if (c === 0) {
+          // Cowcatcher & Smokestack on Engine
+          ctx.fillStyle = '#FDE047';
+          ctx.fillRect(14, -12, 8, 24);
+        }
+        ctx.rotate(-pt.angle);
+        ctx.font = 'bold 20px Fredoka, sans-serif';
+        ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(c === 0 && heldCargo ? heldCargo.label : car.label, 0, 1);
+        ctx.restore();
+      }
+
+      // 8. Smoke Puffs, Whistle Rings & Confetti
+      for (let i = smoke.length - 1; i >= 0; i--) {
+        const s = smoke[i];
+        s.r += 0.45; s.alpha -= 0.02; s.y -= 0.6;
+        if (s.alpha <= 0) { smoke.splice(i, 1); continue; }
+        ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      }
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const r = rings[i];
+        r.r += 7; r.alpha -= 0.03;
+        if (r.alpha <= 0) { rings.splice(i, 1); continue; }
+        ctx.strokeStyle = `rgba(253,224,71,${r.alpha})`;
+        ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+      }
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const p = confetti[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.18; p.life--;
+        if (p.life <= 0) { confetti.splice(i, 1); continue; }
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 6, 6);
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    setupMission(true);
+    render();
+  </script>
+</body>
+</html>

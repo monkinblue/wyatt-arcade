@@ -171,6 +171,7 @@
       { type: 'play', icon: '🚀', bg: '#FFD166', badge: 'Counting 1-20', title: 'Rocket Count 1-20', sub: 'Count stars & blast off into space!', url: 'rocket-count.html' },
       { type: 'play', icon: '🦁', bg: '#A855F7', badge: 'Memory & Logic', title: 'Animal Match Safari', sub: 'Flip crates to find safari pairs!', url: 'animal-match.html' },
       { type: 'play', icon: '🎼', bg: '#EC4899', badge: 'Rhythm Arcade', title: 'Classical Piano Rush', sub: 'Tap the 4 keys to play classical hits!', url: 'piano-tiles.html' },
+      { type: 'play', icon: '🚂', bg: '#F4A261', badge: 'Trains & Switches', title: 'Switchyard Express', sub: 'Flip the tracks and park every train!', url: 'train-switch.html' },
       { type: 'read', icon: '🌱', bg: '#4ECDC4', badge: 'Living eBook', title: 'Wyatt, Emma & the Beanstalk', sub: 'Pack gear & climb to the castle!', url: 'beanstalk.html' },
       { type: 'read', icon: '🏊‍♀️', bg: '#4EA8DE', badge: 'Living eBook', title: 'Splash in the Pool!', sub: 'Tap words to hear them read' },
       { type: 'read', icon: '⛰️', bg: '#00BBF9', badge: 'Living eBook', title: 'The Mountain Train', sub: 'Bedtime story & sound effects' },
@@ -185,7 +186,10 @@
       const grid = document.getElementById('grid');
       grid.innerHTML = '';
       const filtered = items.filter(i => i.type === currentTab);
-      if (filtered.length <= 3) {
+      if (filtered.length > 6) {
+        grid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+        grid.style.gridTemplateRows = 'repeat(2, 1fr)';
+      } else if (filtered.length <= 3) {
         grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
         grid.style.gridTemplateRows = '1fr';
       } else {
