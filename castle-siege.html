@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Castle Siege Artillery!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="castle-siege.css">
+</head>
+<body>
+  <div id="siege-app">
+    <header>
+      <div class="mode-group">
+        <a href="index.html" class="nav-btn">🏠 Back</a>
+        <button class="mode-btn" data-mode="duel">⚔️ Vs. Goblin AI</button>
+        <button class="mode-btn" data-mode="puzzle">🎯 5-Shot Siege</button>
+        <button class="mode-btn" data-mode="pass">👨‍👧 2P Duel</button>
+      </div>
+
+      <div class="wind-pill" id="wind-pill">🌬️ Wind: CALM</div>
+
+      <div class="mode-group">
+        <button class="world-btn" id="world-btn">🌍 Valley</button>
+        <div class="turn-pill" id="status-pill">🏰 Wave 1</div>
+      </div>
+    </header>
+
+    <main class="battle-wrap">
+      <div class="sky-toast" id="sky-toast">Dial Angle & Power (or drag near cannon) and press 🔥 FIRE!</div>
+      <canvas id="siege-canvas" width="960" height="450"></canvas>
+    </main>
+
+    <footer class="cockpit-bar">
+      <div class="dial-box">
+        <button class="step-btn" id="ang-minus">−</button>
+        <div class="slider-col">
+          <div class="slider-lbl"><span>📐 ANGLE</span><b id="ang-val">48°</b></div>
+          <input type="range" id="ang-slider" min="10" max="85" value="48">
+        </div>
+        <button class="step-btn" id="ang-plus">+</button>
+      </div>
+
+      <div class="dial-box">
+        <button class="step-btn" id="pwr-minus">−</button>
+        <div class="slider-col">
+          <div class="slider-lbl"><span>⚡ POWER</span><b id="pwr-val">68</b></div>
+          <input type="range" id="pwr-slider" min="20" max="100" value="68">
+        </div>
+        <button class="step-btn" id="pwr-plus">+</button>
+      </div>
+
+      <div class="ammo-bar">
+        <button class="ammo-btn active" data-ammo="heavy"><span>💣</span><span>Heavy</span></button>
+        <button class="ammo-btn" data-ammo="cluster"><span>✨</span><span>Split x3</span><small id="cnt-cluster">2 left</small></button>
+        <button class="ammo-btn" data-ammo="bouncer"><span>🏀</span><span>Bounce</span><small id="cnt-bouncer">2 left</small></button>
+      </div>
+
+      <button class="fire-btn" id="fire-btn">🔥 FIRE!</button>
+    </footer>
+  </div>
+
+  <div id="siege-modal">
+    <div class="modal-card">
+      <div style="font-size:60px;" id="modal-icon">🏆💥🏰</div>
+      <div style="font-size:36px;font-weight:700;color:#FDE047;" id="modal-title">CASTLE TOPPLED!</div>
+      <div style="font-size:19px;color:#CBD5E1;" id="modal-sub">Direct hit on the Goblin Fortress!</div>
+      <button class="fire-btn" id="next-wave-btn" style="padding:12px 34px;height:auto;">⚔️ Next Siege!</button>
+    </div>
+  </div>
+
+  <script src="castle-physics.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 80, 250].forEach(ms => setTimeout(syncViewport, ms));
+
+    const W = 960, H = 450;
+    const canvas = document.getElementById('siege-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Optional 32-Bit Painted Backdrop Loader
+    const bgImg = new Image();
+    let bgReady = false;
+    const bgPaths = ['images/siege-bg.jpg', 'images/siege-bg.jpeg', 'images/siege-bg.png'];
+    let bgIdx = 0;
+    bgImg.onload = () => { bgReady = true; };
+    bgImg.onerror = () => { bgIdx++; if (bgIdx < bgPaths.length) bgImg.src = bgPaths[bgIdx]; };
+    bgImg.src = bgPaths[0];
+
+    let mode = isEmma ? 'puzzle' : 'duel';
+    let worldIdx = 0;
+    let wave = 1;
+    let activeTurn = 'left'; // 'left' | 'right'
+    let shotsLeft = 5;
+    let wind = 0;
+    let ground = null;
+    let blocks = [];
+    let targets = [];
+    let projectiles = [];
+    let particles = [];
+    let windLeaves = Array.from({ length: 18 }, () => ({ x: Math.random() * W, y: Math.random() * (H * 0.7) }));
+
+    // Per-Side Aim Memory + Ghost Breadcrumbs so kids can iterate Angle/Power!
+    const playerState = {
+      left:  { angle: 48, power: 68, ghost: [], ammo: { cluster: 2, bouncer: 2 } },
+      right: { angle: 48, power: 68, ghost: [], ammo: { cluster: 2, bouncer: 2 } }
+    };
+    let selectedAmmo = 'heavy';
+    let canSplitMidAir = false;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playBoom(freq = 110, dur = 0.35, type = 'sawtooth', vol = 0.3) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, now);
+      o.frequency.exponentialRampToValueAtTime(28, now + dur);
+      g.gain.setValueAtTime(vol, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(now); o.stop(now + dur);
+    }
+
+    function getCannonPos(side) {
+      const x = side === 'left' ? 74 : W - 74;
+      return { x, y: ground[x] - 14 };
+    }
+
+    function rollWind() {
+      if (isEmma && wave === 1 && mode === 'puzzle') {
+        wind = 0;
+      } else {
+        const mph = Math.round((Math.random() - 0.5) * 12);
+        wind = mph * 0.0042;
+      }
+      const mphDisp = Math.round(Math.abs(wind) / 0.0042);
+      const arrow = wind > 0.002 ? '➡️' : (wind < -0.002 ? '⬅️' : '⏺️');
+      document.getElementById('wind-pill').textContent = mphDisp === 0
+        ? '🌬️ Wind: CALM (0)'
+        : `🌬️ Wind: ${arrow} ${mphDisp} mph`;
+    }
+
+    function syncControlsUI() {
+      const st = playerState[activeTurn];
+      document.getElementById('ang-slider').value = st.angle;
+      document.getElementById('ang-val').textContent = `${Math.round(st.angle)}°`;
+      document.getElementById('pwr-slider').value = st.power;
+      document.getElementById('pwr-val').textContent = Math.round(st.power);
+      document.getElementById('cnt-cluster').textContent = `${st.ammo.cluster} left`;
+      document.getElementById('cnt-bouncer').textContent = `${st.ammo.bouncer} left`;
+
+      if (selectedAmmo !== 'heavy' && st.ammo[selectedAmmo] <= 0) selectedAmmo = 'heavy';
+      document.querySelectorAll('.ammo-btn').forEach(b => b.classList.toggle('active', b.dataset.ammo === selectedAmmo));
+
+      const statusEl = document.getElementById('status-pill');
+      if (mode === 'puzzle') statusEl.textContent = `💣 ${shotsLeft} Shots • Wave ${wave}`;
+      else if (mode === 'pass') statusEl.textContent = activeTurn === 'left' ? '🟢 P1 Left Turn' : '🔵 P2 Right Turn';
+      else statusEl.textContent = activeTurn === 'left' ? `🟢 Your Turn • W${wave}` : '👹 Goblin Aiming...';
+    }
+
+    function setupBattle(resetWave = false) {
+      if (resetWave) wave = 1;
+      document.getElementById('siege-modal').style.display = 'none';
+      projectiles = [];
+      particles = [];
+      canSplitMidAir = false;
+      activeTurn = 'left';
+      shotsLeft = isEmma ? 6 : 5;
+
+      playerState.left.ghost = [];
+      playerState.right.ghost = [];
+      playerState.left.ammo = { cluster: 2, bouncer: 2 };
+      playerState.right.ammo = { cluster: 2, bouncer: 2 };
+      selectedAmmo = 'heavy';
+
+      ground = SiegeBuilder.createTerrain(W, H, wave);
+      const rightFort = SiegeBuilder.buildFortress('right', W - 215, ground, wave, isEmma);
+      blocks = [...rightFort.blocks];
+      targets = [...rightFort.targets];
+
+      if (mode !== 'puzzle') {
+        const leftFort = SiegeBuilder.buildFortress('left', 108, ground, wave, isEmma);
+        blocks.push(...leftFort.blocks);
+        targets.push(...leftFort.targets);
+      }
+
+      rollWind();
+      document.getElementById('fire-btn').disabled = false;
+      document.getElementById('fire-btn').textContent = '🔥 FIRE!';
+      document.getElementById('fire-btn').classList.remove('split-ready');
+      document.getElementById('sky-toast').textContent = mode === 'pass'
+        ? 'Player 1 (Left Castle): Aim & Fire!'
+        : 'Smash the Goblin Targets! Snipe 🧨 TNT for a chain reaction!';
+      syncControlsUI();
+    }
+
+    // Trigger Explosion: Carve Terrain, Damage Blocks, Detonate TNT & Check Win!
+    function detonate(x, y, radius, dmg) {
+      playBoom(radius > 44 ? 85 : 130, 0.38);
+      document.body.classList.add('boom-shake');
+      setTimeout(() => document.body.classList.remove('boom-shake'), 180);
+
+      SiegeBuilder.carveCrater(ground, x, y, radius, H);
+
+      for (let i = 0; i < 28; i++) {
+        const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 8;
+        particles.push({
+          x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2,
+          color: ['#FDE047', '#F97316', '#EF4444', '#FFFFFF'][i % 4], life: 28 + Math.random() * 14
+        });
+      }
+
+      const chainTNTs = [];
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        const b = blocks[i];
+        const bx = b.x + b.w / 2, by = b.y + b.h / 2;
+        if (Math.hypot(bx - x, by - y) <= radius + 22) {
+          b.hp -= dmg;
+          if (b.hp <= 0) {
+            blocks.splice(i, 1);
+            if (b.mat === 'tnt') chainTNTs.push({ x: bx, y: by });
+          }
+        }
+      }
+
+      for (let i = targets.length - 1; i >= 0; i--) {
+        const t = targets[i];
+        if (Math.hypot(t.x - x, t.y - y) <= radius + t.r) {
+          t.hp -= dmg;
+          if (t.hp <= 0) targets.splice(i, 1);
+        }
+      }
+
+      // Delayed TNT Chain Reaction!
+      chainTNTs.forEach(keg => setTimeout(() => detonate(keg.x, keg.y, 68, 3), 110));
+    }
+
+    function launchShot(side, angleDeg, power, ammoType) {
+      const pos = getCannonPos(side);
+      const launchRad = side === 'left' ? (angleDeg * Math.PI) / 180 : ((180 - angleDeg) * Math.PI) / 180;
+      const speed = power * 0.175;
+
+      playBoom(240, 0.2, 'triangle', 0.26);
+      if (side === 'left' || mode === 'pass') playerState[side].ghost = [];
+
+      projectiles.push({
+        side, ammo: ammoType,
+        x: pos.x + Math.cos(launchRad) * 26,
+        y: pos.y - Math.sin(launchRad) * 26,
+        vx: Math.cos(launchRad) * speed,
+        vy: -Math.sin(launchRad) * speed,
+        bounces: ammoType === 'bouncer' ? 2 : 0,
+        recordGhost: true
+      });
+
+      const fireBtn = document.getElementById('fire-btn');
+      if (ammoType === 'cluster' && (side === 'left' || mode === 'pass')) {
+        canSplitMidAir = true;
+        fireBtn.textContent = '✨ SPLIT!';
+        fireBtn.classList.add('split-ready');
+      } else {
+        canSplitMidAir = false;
+        fireBtn.disabled = true;
+      }
+    }
+
+    function endTurnAfterSettle() {
+      canSplitMidAir = false;
+      const fireBtn = document.getElementById('fire-btn');
+      fireBtn.classList.remove('split-ready');
+      fireBtn.textContent = '🔥 FIRE!';
+
+      const rightAlive = targets.some(t => t.side === 'right');
+      const leftAlive = mode === 'puzzle' ? true : targets.some(t => t.side === 'left');
+
+      if (!rightAlive) {
+        document.getElementById('modal-icon').textContent = '🏆💥👑';
+        document.getElementById('modal-title').textContent = mode === 'pass' ? 'LEFT CASTLE WINS!' : 'CASTLE TOPPLED!';
+        document.getElementById('modal-sub').textContent = `Wave ${wave} Cleared! Ready for harder wind & taller walls?`;
+        document.getElementById('siege-modal').style.display = 'flex';
+        return;
+      }
+      if (!leftAlive) {
+        document.getElementById('modal-icon').textContent = '💥🛡️⚔️';
+        document.getElementById('modal-title').textContent = mode === 'pass' ? 'RIGHT CASTLE WINS!' : 'GOBLINS GOT LUCKY!';
+        document.getElementById('modal-sub').textContent = 'Rebuild your fortress and blast them back!';
+        document.getElementById('siege-modal').style.display = 'flex';
+        return;
+      }
+
+      if (mode === 'puzzle') {
+        shotsLeft--;
+        if (shotsLeft <= 0) {
+          document.getElementById('modal-icon').textContent = '💣🔄🏰';
+          document.getElementById('modal-title').textContent = 'OUT OF CANNONBALLS!';
+          document.getElementById('modal-sub').textContent = 'Use your ghost trail to dial in the next siege!';
+          document.getElementById('siege-modal').style.display = 'flex';
+          return;
+        }
+        fireBtn.disabled = false;
+        rollWind();
+        syncControlsUI();
+      } else if (mode === 'pass') {
+        activeTurn = activeTurn === 'left' ? 'right' : 'left';
+        rollWind();
+        fireBtn.disabled = false;
+        document.getElementById('sky-toast').textContent = activeTurn === 'left' ? '🟢 Player 1 (Left) Turn!' : '🔵 Player 2 (Right) Turn!';
+        syncControlsUI();
+      } else if (mode === 'duel') {
+        if (activeTurn === 'left') {
+          activeTurn = 'right';
+          syncControlsUI();
+          document.getElementById('sky-toast').textContent = '👹 Watch out! Goblin King is aiming back!';
+          setTimeout(() => {
+            const aiPos = getCannonPos('right');
+            const heroTarget = targets.find(t => t.side === 'left') || getCannonPos('left');
+            const world = SIEGE_WORLDS[worldIdx];
+            const shot = SiegeBuilder.solveAIShot(aiPos.x, aiPos.y, heroTarget.x, heroTarget.y, wind, world.grav, wave);
+            launchShot('right', 180 - shot.angle, shot.power, 'heavy');
+          }, 950);
+        } else {
+          activeTurn = 'left';
+          rollWind();
+          fireBtn.disabled = false;
+          document.getElementById('sky-toast').textContent = '🟢 Your Turn! Follow your white ghost dots to adjust!';
+          syncControlsUI();
+        }
+      }
+    }
+
+    // Sliders, Steppers, Ammo & Touch-Drag Barrel Aiming
+    const setAngle = (v) => {
+      playerState[activeTurn].angle = Math.max(10, Math.min(85, Number(v)));
+      syncControlsUI();
+    };
+    const setPower = (v) => {
+      playerState[activeTurn].power = Math.max(20, Math.min(100, Number(v)));
+      syncControlsUI();
+    };
+    document.getElementById('ang-slider').oninput = (e) => setAngle(e.target.value);
+    document.getElementById('pwr-slider').oninput = (e) => setPower(e.target.value);
+    document.getElementById('ang-minus').onpointerdown = () => setAngle(playerState[activeTurn].angle - 2);
+    document.getElementById('ang-plus').onpointerdown  = () => setAngle(playerState[activeTurn].angle + 2);
+    document.getElementById('pwr-minus').onpointerdown = () => setPower(playerState[activeTurn].power - 3);
+    document.getElementById('pwr-plus').onpointerdown  = () => setPower(playerState[activeTurn].power + 3);
+
+    document.querySelectorAll('.ammo-btn').forEach(btn => {
+      btn.onpointerdown = () => {
+        const type = btn.dataset.ammo;
+        if (type !== 'heavy' && playerState[activeTurn].ammo[type] <= 0) return;
+        selectedAmmo = type;
+        syncControlsUI();
+      };
+    });
+
+    function triggerClusterSplit() {
+      if (!canSplitMidAir || projectiles.length === 0) return;
+      canSplitMidAir = false;
+      const p = projectiles[0];
+      playBoom(420, 0.18, 'square', 0.25);
+      [-1.8, 0, 1.8].forEach(spread => {
+        projectiles.push({
+          side: p.side, ammo: 'mini', x: p.x, y: p.y,
+          vx: p.vx + spread, vy: p.vy - 1.2, bounces: 0, recordGhost: false
+        });
+      });
+      projectiles.shift();
+      document.getElementById('fire-btn').classList.remove('split-ready');
+      document.getElementById('fire-btn').disabled = true;
+    }
+
+    document.getElementById('fire-btn').onpointerdown = () => {
+      if (canSplitMidAir) { triggerClusterSplit(); return; }
+      if (projectiles.length > 0) return;
+      const st = playerState[activeTurn];
+      if (selectedAmmo !== 'heavy') st.ammo[selectedAmmo]--;
+      launchShot(activeTurn, st.angle, st.power, selectedAmmo);
+      syncControlsUI();
+    };
+
+    // Tap Sky Mid-Flight to Split Cluster OR Drag Near Active Cannon to Aim Directly!
+    let draggingAim = false;
+    canvas.addEventListener('pointerdown', (e) => {
+      if (canSplitMidAir) { triggerClusterSplit(); return; }
+      if (projectiles.length > 0 || (mode === 'duel' && activeTurn === 'right')) return;
+      draggingAim = true;
+      updateDragAim(e);
+    });
+    canvas.addEventListener('pointermove', (e) => { if (draggingAim) updateDragAim(e); });
+    window.addEventListener('pointerup', () => { draggingAim = false; });
+
+    function updateDragAim(e) {
+      const r = canvas.getBoundingClientRect();
+      const mx = ((e.clientX - r.left) / r.width) * W;
+      const my = ((e.clientY - r.top) / r.height) * H;
+      const cPos = getCannonPos(activeTurn);
+      const dx = activeTurn === 'left' ? (mx - cPos.x) : (cPos.x - mx);
+      const dy = cPos.y - my;
+      if (dx > 8 && dy > 4) {
+        setAngle((Math.atan2(dy, dx) * 180) / Math.PI);
+        setPower(Math.hypot(dx, dy) * 0.45);
+      }
+    }
+
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+      btn.onpointerdown = () => {
+        mode = btn.dataset.mode;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        setupBattle(true);
+      };
+    });
+
+    document.getElementById('world-btn').onpointerdown = () => {
+      worldIdx = (worldIdx + 1) % SIEGE_WORLDS.length;
+      document.getElementById('world-btn').textContent = SIEGE_WORLDS[worldIdx].name;
+      setupBattle(false);
+    };
+
+    document.getElementById('next-wave-btn').onpointerdown = () => {
+      if (targets.every(t => t.side !== 'right')) wave++;
+      setupBattle(false);
+    };
+
+    // Physics Step & 60 FPS Renderer
+    let settleWait = 0;
+    function render() {
+      const world = SIEGE_WORLDS[worldIdx];
+
+      // 1. Gravity Settling for Fortress Blocks & Targets when Ground/Pillars Collapse!
+      blocks.forEach((b, idx) => {
+        let supportY = ground[Math.floor(b.x + b.w / 2)];
+        blocks.forEach((other, j) => {
+          if (idx !== j && Math.abs(other.x - b.x) < b.w * 0.75 && other.y > b.y) {
+            supportY = Math.min(supportY, other.y);
+          }
+        });
+        if (b.y + b.h < supportY - 1) {
+          b.vy += 0.35;
+          b.y = Math.min(supportY - b.h, b.y + b.vy);
+        } else {
+          // Crushing fall damage if upper floor drops hard!
+          if (b.vy > 5.5) b.hp--;
+          b.vy = 0; b.y = supportY - b.h;
+        }
+      });
+
+      targets.forEach(t => {
+        let supportY = ground[Math.floor(t.x)];
+        blocks.forEach(b => {
+          if (t.x >= b.x - 4 && t.x <= b.x + b.w + 4 && b.y >= t.y) supportY = Math.min(supportY, b.y);
+        });
+        if (t.y + t.r < supportY - 1) {
+          t.vy += 0.35;
+          t.y = Math.min(supportY - t.r, t.y + t.vy);
+        } else {
+          if (t.vy > 6.2) t.hp = 0; // Fall knockout!
+          t.vy = 0; t.y = supportY - t.r;
+        }
+      });
+      targets = targets.filter(t => t.hp > 0);
+
+      // 2. Step Active Projectiles
+      const hadProj = projectiles.length > 0;
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        p.vx += wind;
+        p.vy += world.grav;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.recordGhost && (p.side === 'left' || mode === 'pass') && Math.random() < 0.45) {
+          playerState[p.side].ghost.push({ x: p.x, y: p.y });
+        }
+
+        if (p.x < -30 || p.x > W + 30 || p.y > H + 40) {
+          projectiles.splice(i, 1);
+          continue;
+        }
+
+        const gx = Math.max(0, Math.min(W - 1, Math.floor(p.x)));
+        const hitGround = p.y >= ground[gx];
+        const hitBlock = blocks.some(b => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
+        const hitTarget = targets.some(t => Math.hypot(p.x - t.x, p.y - t.y) <= t.r + 8);
+
+        if (hitGround || hitBlock || hitTarget) {
+          if (p.bounces > 0 && hitGround) {
+            p.bounces--;
+            p.y = ground[gx] - 3;
+            p.vy = -Math.abs(p.vy) * 0.68;
+            detonate(p.x, p.y, 26, 1);
+          } else {
+            const rad = p.ammo === 'heavy' ? 46 : 34;
+            const dmg = p.ammo === 'heavy' ? 2 : 1;
+            detonate(p.x, p.y, rad, dmg);
+            projectiles.splice(i, 1);
+          }
+        }
+      }
+
+      if (hadProj && projectiles.length === 0) settleWait = 28;
+      if (settleWait > 0) {
+        settleWait--;
+        if (settleWait === 0) endTurnAfterSettle();
+      }
+
+      // 3. Draw Painted Sky or Dynamic Gradient
+      ctx.clearRect(0, 0, W, H);
+      if (bgReady && worldIdx === 0) {
+        ctx.drawImage(bgImg, 0, 0, W, H);
+      } else {
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, world.skyTop);
+        g.addColorStop(1, world.skyBot);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // Drifting Wind Particles so Kids Visually Feel Wind Speed & Direction!
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      windLeaves.forEach(lf => {
+        lf.x += wind * 320 + 0.15;
+        lf.y += 0.25;
+        if (lf.x > W) lf.x = 0;
+        if (lf.x < 0) lf.x = W;
+        if (lf.y > H * 0.72) lf.y = 10;
+        ctx.fillRect(lf.x, lf.y, 7, 3);
+      });
+
+      // 4. Draw Destructible Terrain Polygon
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x < W; x += 2) ctx.lineTo(x, ground[x]);
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fillStyle = world.dirt;
+      ctx.fill();
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = world.rock;
+      ctx.stroke();
+      ctx.restore();
+
+      // 5. Draw Previous Shot Ghost Breadcrumbs (No Full Cheat Arc!)
+      const activeGhost = playerState[activeTurn].ghost;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      activeGhost.forEach(pt => {
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // 6. Draw Short Muzzle Sightline (Shows Launch Angle + Power Only!)
+      if (projectiles.length === 0 && (activeTurn === 'left' || mode === 'pass')) {
+        const cPos = getCannonPos(activeTurn);
+        const st = playerState[activeTurn];
+        const rad = activeTurn === 'left' ? (st.angle * Math.PI) / 180 : ((180 - st.angle) * Math.PI) / 180;
+        const reach = 36 + st.power * 0.72;
+        ctx.save();
+        ctx.strokeStyle = '#FDE047';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([7, 7]);
+        ctx.beginPath();
+        ctx.moveTo(cPos.x, cPos.y);
+        ctx.lineTo(cPos.x + Math.cos(rad) * reach, cPos.y - Math.sin(rad) * reach);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 7. Draw Fortress Structural Blocks
+      const matColors = { stone: '#64748B', wood: '#B45309', ice: '#38BDF8', tnt: '#DC2626' };
+      blocks.forEach(b => {
+        ctx.fillStyle = matColors[b.mat];
+        ctx.strokeStyle = b.hp < b.maxHp ? '#FEF08A' : '#0F172A';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(b.x, b.y, b.w, b.h, 5);
+        ctx.fill(); ctx.stroke();
+        if (b.mat === 'tnt') {
+          ctx.font = 'bold 12px Fredoka, sans-serif';
+          ctx.fillStyle = '#FEF08A'; ctx.textAlign = 'center';
+          ctx.fillText('TNT', b.x + b.w / 2, b.y + 18);
+        }
+      });
+
+      // 8. Draw Targets & Cannons
+      targets.forEach(t => {
+        ctx.font = `${t.r * 1.9}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(t.icon, t.x, t.y);
+      });
+
+      ['left', ...(mode === 'puzzle' ? [] : ['right'])].forEach(side => {
+        const cPos = getCannonPos(side);
+        const ang = side === 'left' ? playerState.left.angle : playerState.right.angle;
+        const rad = side === 'left' ? (ang * Math.PI) / 180 : ((180 - ang) * Math.PI) / 180;
+        ctx.save();
+        ctx.translate(cPos.x, cPos.y);
+        ctx.rotate(-rad);
+        ctx.fillStyle = side === 'left' ? '#0EA5E9' : '#EF4444';
+        ctx.strokeStyle = '#FFF'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.roundRect(0, -8, 30, 16, 6); ctx.fill(); ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = '#1E293B';
+        ctx.beginPath(); ctx.arc(cPos.x, cPos.y + 6, 12, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // 9. Draw Flying Cannonballs & Explosion Sparks
+      projectiles.forEach(p => {
+        ctx.fillStyle = p.ammo === 'cluster' ? '#38BDF8' : (p.ammo === 'bouncer' ? '#F97316' : '#FDE047');
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.ammo === 'mini' ? 6 : 9, 0, Math.PI * 2); ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = '#0F172A'; ctx.stroke();
+      });
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.22; p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 6, 6);
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    setupBattle(true);
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
