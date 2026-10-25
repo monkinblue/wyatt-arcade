@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>We're Going on a Ghost Hunt!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="ghost-hunt.css">
+</head>
+<body>
+  <div id="ghost-app">
+    <header>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a href="index.html" class="nav-btn">🏠 Back</a>
+        <button class="mode-btn active" id="mode-story">🗺️ Full Hunt</button>
+        <button class="mode-btn" id="mode-flash">🔦 Flashlight Only</button>
+      </div>
+
+      <div class="step-dots">
+        <span class="s-dot curr" id="dot-0">🌾</span>
+        <span class="s-dot" id="dot-1">🫧</span>
+        <span class="s-dot" id="dot-2">🕸️</span>
+        <span class="s-dot" id="dot-3">🔦</span>
+        <span class="s-dot" id="dot-4">🏃</span>
+      </div>
+
+      <div class="album-pill">👻 Found: <span id="found-count">0</span>/6</div>
+    </header>
+
+    <main class="stage-wrap">
+      <div class="chant-banner" id="chant-banner" title="Tap to sing along!">🌾 Tall wavy grass! Swipe the grass: Swish, swash!</div>
+      <canvas id="hunt-canvas" width="960" height="500"></canvas>
+      <button id="run-btn">🏃💨 TAP TO RUN HOME!</button>
+    </main>
+  </div>
+
+  <div id="cozy-modal">
+    <div class="cozy-card">
+      <div style="font-size:56px;">🛌🌟🐶🐉</div>
+      <div style="font-size:34px;font-weight:700;color:#FDE047;" id="cozy-title">SAFE UNDER THE COVERS!</div>
+      <div style="font-size:20px;color:#E9D5FF;" id="cozy-sub">You spotted the Cupcake Ghost! We're not scared!</div>
+      <div class="album-row" id="album-row"></div>
+      <button class="again-btn" id="again-btn">👻 Go on Another Ghost Hunt!</button>
+    </div>
+  </div>
+
+  <script src="ghost-stages.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'emma';
+    const isEmma = profile === 'emma';
+    const heroIcon = isEmma ? '🐶' : '🐉';
+
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    [0, 80, 250].forEach(ms => setTimeout(syncViewport, ms));
+
+    const W = 960, H = 500;
+    const canvas = document.getElementById('hunt-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Offscreen Darkness Layer for True `destination-out` Flashlight Spotlight!
+    const darkCanvas = document.createElement('canvas');
+    darkCanvas.width = W; darkCanvas.height = H;
+    const darkCtx = darkCanvas.getContext('2d');
+
+    // Custom 32-Bit Haunted Parlor Backdrop Loader
+    const mansionImg = new Image();
+    let mansionReady = false;
+    const imgPaths = ['images/ghost-mansion.jpg', 'images/ghost-mansion.jpeg', 'images/ghost-mansion.png', 'ghost-mansion.jpg'];
+    let pathIdx = 0;
+    mansionImg.onload = () => { mansionReady = true; };
+    mansionImg.onerror = () => { pathIdx++; if (pathIdx < imgPaths.length) mansionImg.src = imgPaths[pathIdx]; };
+    mansionImg.src = imgPaths[0];
+
+    let unlocked = JSON.parse(localStorage.getItem('ghostAlbum') || '[]');
+    let flashlightOnly = false;
+    let stage = 0; // 0=Grass, 1=Swamp, 2=Cobwebs/Door, 3=Flashlight Search, 4=Run Home!
+    let grassBlades = [];
+    let mudBubbles = [];
+    let nextBubbleNum = 1;
+    let cobwebs = [];
+    let activeGhost = SILLY_GHOSTS[0];
+    let ghostSpot = { x: 700, y: 240, charge: 0, revealed: false };
+    let decoys = [];
+    let beam = { x: W / 2, y: H / 2, active: true };
+    let pointerDown = false;
+    let runProgress = 0; // 0 -> 100% back home!
+    let sparkles = [];
+    let tick = 0;
+    let audioCtx = null;
+
+    function updateAlbumHUD() {
+      document.getElementById('found-count').textContent = unlocked.length;
+      document.getElementById('album-row').innerHTML = SILLY_GHOSTS.map(g => `
+        <div class="g-badge ${unlocked.includes(g.id) ? 'unlocked' : ''}" title="${g.name}">${g.hat}</div>
+      `).join('');
+    }
+    updateAlbumHUD();
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function speak(txt) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(txt);
+      u.rate = 0.96; u.pitch = 1.14;
+      window.speechSynthesis.speak(u);
+    }
+
+    function playSound(f1, f2, dur = 0.16, type = 'sine', vol = 0.22) {
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(f1, now);
+        o.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+        g.gain.setValueAtTime(vol, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(now); o.stop(now + dur);
+      } catch (_) {}
+    }
+
+    function spawnSparkles(x, y, color = '#FDE047', n = 18) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 6;
+        sparkles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1.5, color, life: 30 });
+      }
+    }
+
+    function syncStepDots() {
+      for (let i = 0; i < 5; i++) {
+        const d = document.getElementById(`dot-${i}`);
+        d.className = 's-dot' + (i < stage ? ' done' : (i === stage ? ' curr' : ''));
+      }
+    }
+
+    // Set Up Any of the 5 Adventure Stages!
+    function enterStage(s) {
+      stage = s;
+      syncStepDots();
+      document.getElementById('cozy-modal').style.display = 'none';
+      document.getElementById('run-btn').style.display = s === 4 ? 'block' : 'none';
+      const banner = document.getElementById('chant-banner');
+
+      if (s === 0) {
+        // Stage 0: Tall Wavy Grass (Swipe 14 stalks!)
+        grassBlades = Array.from({ length: 14 }, (_, i) => ({
+          x: 110 + i * 58, cleared: false, bend: 0
+        }));
+        banner.textContent = "🌾 We're going on a ghost hunt! Swipe the tall grass: Swish, swash!";
+        speak("We're going on a ghost hunt! Swipe the tall wavy grass! Swish, swash!");
+      } else if (s === 1) {
+        // Stage 1: Bubbly Purple Swamp (Pop 1 to 5 in order or any bubble for Emma!)
+        nextBubbleNum = 1;
+        mudBubbles = Array.from({ length: 5 }, (_, i) => ({
+          num: i + 1,
+          x: 170 + i * 155,
+          y: 250 + (i % 2 === 0 ? -45 : 45),
+          r: 52, popped: false
+        }));
+        banner.textContent = '🫧 Bubbly swamp mud! Pop all 5 bubbles: Squelch, squerch!';
+        speak('Uh oh, bubbly mud! Pop the five bubbles! Squelch, squerch!');
+      } else if (s === 2) {
+        // Stage 2: Stretchy Spiderwebs Over the Haunted Door
+        cobwebs = [
+          { x: 350, y: 180, cleared: false },
+          { x: 610, y: 180, cleared: false },
+          { x: 360, y: 340, cleared: false },
+          { x: 600, y: 340, cleared: false }
+        ];
+        banner.textContent = '🕸️ Spooky mansion door! Brush away the 4 cobwebs: Tiptoe, tiptoe!';
+        speak('A spooky door! Brush away the cobwebs! Tiptoe, tiptoe!');
+      } else if (s === 3) {
+        // Stage 3: THE MAGIC FLASHLIGHT SEARCH!
+        const unfound = SILLY_GHOSTS.filter(g => !unlocked.includes(g.id));
+        const pool = unfound.length > 0 ? unfound : SILLY_GHOSTS;
+        activeGhost = pool[Math.floor(Math.random() * pool.length)];
+
+        // Pick 4 hiding spots around the parlor (3 cute decoys + 1 real silly ghost!)
+        const spots = [
+          { x: 185, y: 215 }, { x: 765, y: 205 },
+          { x: 235, y: 375 }, { x: 735, y: 365 }, { x: 480, y: 210 }
+        ].sort(() => Math.random() - 0.5);
+
+        ghostSpot = { x: spots[0].x, y: spots[0].y, charge: 0, revealed: false };
+        decoys = spots.slice(1, 4).map((pt, idx) => ({
+          x: pt.x, y: pt.y, ...DECOY_FRIENDS[idx % DECOY_FRIENDS.length], found: false
+        }));
+        beam = { x: W / 2, y: H - 90, active: true };
+
+        banner.textContent = "🔦 Shhh... What's that?! Move your Flashlight around the dark room!";
+        speak("What's that in the dark? Shine your flashlight around the room!");
+      } else if (s === 4) {
+        // Stage 4: Fast Giggle Dash Back Home!
+        runProgress = 0;
+        banner.textContent = `👻 IT'S A ${activeGhost.name.toUpperCase()}! TAP FAST TO RUN HOME!`;
+        speak(`Eek! It's a ${activeGhost.name}! Quick, run back through the mud and grass!`);
+      }
+    }
+
+    function finishRunHome() {
+      if (!unlocked.includes(activeGhost.id)) {
+        unlocked.push(activeGhost.id);
+        localStorage.setItem('ghostAlbum', JSON.stringify(unlocked));
+      }
+      updateAlbumHUD();
+      document.getElementById('run-btn').style.display = 'none';
+      document.getElementById('cozy-sub').textContent = `You found the ${activeGhost.hat} ${activeGhost.name}! Phew, we're not scared!`;
+      document.getElementById('cozy-modal').style.display = 'flex';
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => setTimeout(() => playSound(f, f * 1.02, 0.22, 'triangle', 0.25), i * 85));
+      speak("Safe under the cozy blanket! We're not scared!");
+    }
+
+    // Touch / Drag Interactions Across All Stages
+    function handlePointer(e, isDownTap = false) {
+      const r = canvas.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width) * W;
+      const y = ((e.clientY - r.top) / r.height) * H;
+
+      if (stage === 0) {
+        grassBlades.forEach(b => {
+          if (!b.cleared && Math.abs(x - b.x) < 46) {
+            b.cleared = true;
+            b.bend = x < b.x ? 55 : -55;
+            playSound(320, 540, 0.1, 'triangle', 0.16);
+            spawnSparkles(b.x, y, '#4ADE80', 8);
+          }
+        });
+        if (grassBlades.every(b => b.cleared)) {
+          playSound(523, 784, 0.22, 'triangle');
+          setTimeout(() => enterStage(1), 450);
+        }
+      } else if (stage === 1 && isDownTap) {
+        mudBubbles.forEach(b => {
+          if (!b.popped && Math.hypot(x - b.x, y - b.y) < b.r + 16) {
+            b.popped = true;
+            const poppedCount = mudBubbles.filter(m => m.popped).length;
+            playSound(190 + poppedCount * 55, 420, 0.16, 'sine', 0.28);
+            spawnSparkles(b.x, b.y, '#C084FC', 18);
+            speak(String(poppedCount));
+            if (poppedCount === mudBubbles.length) {
+              setTimeout(() => enterStage(2), 650);
+            }
+          }
+        });
+      } else if (stage === 2) {
+        cobwebs.forEach(w => {
+          if (!w.cleared && Math.hypot(x - w.x, y - w.y) < 75) {
+            w.cleared = true;
+            playSound(440, 680, 0.12, 'triangle', 0.2);
+            spawnSparkles(w.x, w.y, '#E2E8F0', 14);
+          }
+        });
+        if (cobwebs.every(w => w.cleared)) {
+          playSound(180, 95, 0.45, 'sawtooth', 0.2); // Creaky door opens!
+          setTimeout(() => enterStage(3), 550);
+        }
+      } else if (stage === 3) {
+        beam.x = x;
+        beam.y = y;
+      } else if (stage === 4 && isDownTap) {
+        boostRunHome();
+      }
+    }
+
+    canvas.addEventListener('pointerdown', (e) => { pointerDown = true; handlePointer(e, true); });
+    canvas.addEventListener('pointermove', (e) => { if (pointerDown || stage === 3) handlePointer(e, false); });
+    window.addEventListener('pointerup', () => { pointerDown = false; });
+
+    function boostRunHome() {
+      if (stage !== 4) return;
+      runProgress = Math.min(100, runProgress + (isEmma ? 14 : 11));
+      playSound(340 + runProgress * 3, 520 + runProgress * 3, 0.1, 'triangle', 0.2);
+      if (runProgress >= 100) finishRunHome();
+    }
+    document.getElementById('run-btn').onpointerdown = (e) => { e.stopPropagation(); boostRunHome(); };
+
+    document.getElementById('mode-story').onpointerdown = () => {
+      flashlightOnly = false;
+      document.getElementById('mode-story').classList.add('active');
+      document.getElementById('mode-flash').classList.remove('active');
+      enterStage(0);
+    };
+    document.getElementById('mode-flash').onpointerdown = () => {
+      flashlightOnly = true;
+      document.getElementById('mode-flash').classList.add('active');
+      document.getElementById('mode-story').classList.remove('active');
+      enterStage(3);
+    };
+    document.getElementById('again-btn').onpointerdown = () => enterStage(flashlightOnly ? 3 : 0);
+    document.getElementById('chant-banner').onpointerdown = () => speak(document.getElementById('chant-banner').textContent);
+
+    // 60 FPS Adventure & Flashlight Spotlight Renderer
+    function render() {
+      tick++;
+      ctx.clearRect(0, 0, W, H);
+
+      if (stage === 0) {
+        // STAGE 0: Moonlit Meadow + Tall Swaying Grass Blades
+        const sky = ctx.createLinearGradient(0, 0, 0, H);
+        sky.addColorStop(0, '#1E1B4B'); sky.addColorStop(1, '#064E3B');
+        ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+        ctx.font = '88px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(heroIcon, W / 2, H - 115);
+
+        grassBlades.forEach((b, i) => {
+          const sway = b.cleared ? b.bend : Math.sin(tick * 0.08 + i) * 14;
+          ctx.save();
+          ctx.strokeStyle = b.cleared ? 'rgba(34,197,94,0.32)' : '#22C55E';
+          ctx.lineWidth = 26; ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(b.x, H);
+          ctx.quadraticCurveTo(b.x + sway, H * 0.55, b.x + sway * 1.8, b.cleared ? H * 0.68 : 115);
+          ctx.stroke();
+          ctx.restore();
+        });
+      } else if (stage === 1) {
+        // STAGE 1: Bubbly Purple Swamp
+        ctx.fillStyle = '#2E1065'; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#581C87'; ctx.fillRect(0, H * 0.52, W, H * 0.48);
+
+        mudBubbles.forEach((b, i) => {
+          if (b.popped) return;
+          const bob = Math.sin(tick * 0.1 + i) * 8;
+          ctx.save();
+          ctx.fillStyle = 'rgba(192, 132, 252, 0.85)';
+          ctx.strokeStyle = '#FEF08A'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(b.x, b.y + bob, b.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.font = 'bold 36px Fredoka, sans-serif';
+          ctx.fillStyle = '#FFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('🫧', b.x, b.y + bob);
+          ctx.restore();
+        });
+      } else if (stage === 2) {
+        // STAGE 2: Haunted Mansion Door + Stretchy Cobwebs
+        ctx.fillStyle = '#1E1B4B'; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#78350F'; ctx.strokeStyle = '#F59E0B'; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.roundRect(W / 2 - 140, 95, 280, H - 95, [140, 140, 0, 0]); ctx.fill(); ctx.stroke();
+
+        cobwebs.forEach(w => {
+          if (w.cleared) return;
+          ctx.font = '96px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('🕸️', w.x, w.y);
+        });
+      } else if (stage === 3) {
+        // STAGE 3: MAGIC FLASHLIGHT SPOTLIGHT OVER 32-BIT MANSION PAINTING!
+        if (mansionReady) {
+          ctx.drawImage(mansionImg, 0, 0, W, H);
+        } else {
+          GhostArt.drawMansionFallback(ctx, W, H);
+        }
+
+        // Draw Decoy Critters & Hiding Silly Ghost in the Illuminated Room
+        decoys.forEach(d => {
+          ctx.font = '58px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(d.icon, d.x, d.y);
+          if (!d.found && Math.hypot(beam.x - d.x, beam.y - d.y) < 82) {
+            d.found = true;
+            playSound(420, 620, 0.14, 'triangle');
+            spawnSparkles(d.x, d.y, '#38BDF8', 14);
+            speak(d.say);
+          }
+        });
+
+        const distGhost = Math.hypot(beam.x - ghostSpot.x, beam.y - ghostSpot.y);
+        if (distGhost < 95 && !ghostSpot.revealed) {
+          ghostSpot.charge = Math.min(100, ghostSpot.charge + 2.8);
+          if (tick % 8 === 0) playSound(480 + ghostSpot.charge * 4, 520 + ghostSpot.charge * 4, 0.07, 'sine', 0.15);
+          if (ghostSpot.charge >= 100) {
+            ghostSpot.revealed = true;
+            spawnSparkles(ghostSpot.x, ghostSpot.y, '#FDE047', 40);
+            [523, 659, 784, 987].forEach((f, i) => setTimeout(() => playSound(f, f * 1.05, 0.18, 'triangle', 0.25), i * 75));
+            speak(`${activeGhost.giggle} It's the ${activeGhost.name}!`);
+            setTimeout(() => {
+              if (flashlightOnly) finishRunHome();
+              else enterStage(4);
+            }, 1550);
+          }
+        }
+
+        GhostArt.drawSillyGhost(ctx, ghostSpot.x, ghostSpot.y, ghostSpot.revealed ? 1.32 : 1.0, activeGhost, tick);
+
+        // Paint Pitch-Dark Mansion Shadow Mask & Punch Flashlight Hole!
+        if (!ghostSpot.revealed) {
+          darkCtx.clearRect(0, 0, W, H);
+          darkCtx.fillStyle = 'rgba(5, 6, 20, 0.94)';
+          darkCtx.fillRect(0, 0, W, H);
+
+          // Punch soft glowing hole where Emma's finger shines the flashlight!
+          darkCtx.globalCompositeOperation = 'destination-out';
+          const hole = darkCtx.createRadialGradient(beam.x, beam.y, 38, beam.x, beam.y, 148);
+          hole.addColorStop(0, 'rgba(0,0,0,1)');
+          hole.addColorStop(0.68, 'rgba(0,0,0,0.88)');
+          hole.addColorStop(1, 'rgba(0,0,0,0)');
+          darkCtx.fillStyle = hole;
+          darkCtx.beginPath(); darkCtx.arc(beam.x, beam.y, 148, 0, Math.PI * 2); darkCtx.fill();
+          darkCtx.globalCompositeOperation = 'source-over';
+
+          ctx.drawImage(darkCanvas, 0, 0);
+
+          // Warm Golden Flashlight Rim + Blinking Peek-a-Boo Eyes in the Unlit Dark!
+          ctx.strokeStyle = 'rgba(253, 224, 71, 0.45)';
+          ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(beam.x, beam.y, 132, 0, Math.PI * 2); ctx.stroke();
+
+          if (distGhost > 125) GhostArt.drawPeekingEyes(ctx, ghostSpot.x, ghostSpot.y - 14, tick, 1);
+          decoys.forEach((d, idx) => {
+            if (!d.found && Math.hypot(beam.x - d.x, beam.y - d.y) > 125) {
+              GhostArt.drawPeekingEyes(ctx, d.x, d.y - 6, tick, idx + 3);
+            }
+          });
+        }
+      } else if (stage === 4) {
+        // STAGE 4: High-Speed Reverse Giggle Dash Through Obstacles to Cozy Bed!
+        runProgress = Math.min(100, runProgress + 0.22); // Gentle auto-assist so 3yo always makes it!
+        if (runProgress >= 100) finishRunHome();
+
+        const sky = ctx.createLinearGradient(0, 0, W, 0);
+        sky.addColorStop(0, '#311068'); sky.addColorStop(0.5, '#064E3B'); sky.addColorStop(1, '#1E3A8A');
+        ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+        // Landmarks Whizzing Past: Cobweb -> Swamp -> Grass -> Cozy Bed!
+        ctx.font = '64px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('🕸️', 140, 290);
+        ctx.fillText('🫧', 360, 290);
+        ctx.fillText('🌾', 580, 290);
+        ctx.fillText('🛌', 845, 285);
+
+        const runnerX = 95 + (runProgress / 100) * 740;
+        const hop = Math.abs(Math.sin(tick * 0.35)) * 22;
+        GhostArt.drawSillyGhost(ctx, Math.max(60, runnerX - 135), 265, 0.82, activeGhost, tick);
+        ctx.font = '76px sans-serif';
+        ctx.fillText(heroIcon, runnerX, 280 - hop);
+      }
+
+      // Sparkle Confetti Overlay
+      for (let i = sparkles.length - 1; i >= 0; i--) {
+        const p = sparkles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        if (p.life <= 0) { sparkles.splice(i, 1); continue; }
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4.5, 0, Math.PI * 2); ctx.fill();
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    enterStage(0);
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

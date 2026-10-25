@@ -1,0 +1,110 @@
+:root { --app-w: 100vw; --app-h: 100dvh; }
+* { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%; overflow: hidden; position: fixed; inset: 0;
+  font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+  background: radial-gradient(circle at 50% 25%, #2E1065 0%, #0F172A 70%, #020617 100%);
+  color: #FFF; touch-action: none;
+}
+#ghost-app {
+  position: fixed; inset: 0; width: var(--app-w); height: var(--app-h);
+  display: grid; grid-template-rows: 62px 1fr; padding: 8px 14px 12px; gap: 10px;
+}
+
+/* Header & Ghost Sticker Album Strip */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(15, 23, 42, 0.94); border: 3px solid #A855F7;
+  border-radius: 22px; padding: 6px 14px; gap: 10px; z-index: 40;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.nav-btn, .mode-btn {
+  font-family: inherit; font-weight: 700; font-size: 15px;
+  background: #1E293B; color: #F8FAFC; border: 3px solid #475569;
+  padding: 6px 13px; border-radius: 16px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap;
+}
+.mode-btn.active {
+  background: linear-gradient(135deg, #F59E0B, #EA580C);
+  border-color: #FEF08A; color: #FFF;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.55);
+}
+.step-dots {
+  display: flex; align-items: center; gap: 8px;
+  background: #020617; border: 2px solid #475569; border-radius: 99px; padding: 5px 14px;
+}
+.s-dot {
+  font-size: 18px; opacity: 0.32; filter: grayscale(1); transition: 0.2s;
+}
+.s-dot.done { opacity: 1; filter: none; }
+.s-dot.curr { opacity: 1; filter: none; transform: scale(1.28); }
+
+.album-pill {
+  background: linear-gradient(135deg, #7C3AED, #4C1D95);
+  border: 3px solid #E9D5FF; color: #FFF; padding: 5px 14px;
+  border-radius: 18px; font-weight: 700; font-size: 17px; white-space: nowrap;
+}
+
+/* Main Interactive Canvas Stage */
+.stage-wrap {
+  position: relative; width: 100%; height: 100%; min-height: 0;
+  border-radius: 28px; border: 5px solid #A855F7; overflow: hidden;
+  background: #090D16; box-shadow: 0 14px 36px rgba(0,0,0,0.7);
+}
+canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+}
+.chant-banner {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.92); border: 3px solid #FDE047;
+  color: #FEF08A; padding: 7px 22px; border-radius: 99px;
+  font-size: 20px; font-weight: 700; z-index: 25; cursor: pointer;
+  white-space: nowrap; box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+}
+
+/* Giant Run-Back-Home Button During Escape Phase */
+#run-btn {
+  display: none; position: absolute; bottom: 18px; left: 50%;
+  transform: translateX(-50%); z-index: 30;
+  background: linear-gradient(135deg, #06D6A0, #10B981); color: #022C22;
+  border: 5px solid #FFF; border-radius: 99px; padding: 14px 40px;
+  font-family: inherit; font-size: 26px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 8px 0 #047857, 0 0 35px rgba(6,214,160,0.85);
+  animation: runPulse 0.32s infinite alternate; white-space: nowrap;
+}
+#run-btn:active { transform: translateX(-50%) translateY(5px); box-shadow: 0 3px 0 #047857; }
+@keyframes runPulse {
+  from { transform: translateX(-50%) scale(1); }
+  to { transform: translateX(-50%) scale(1.07); }
+}
+
+/* Cozy Blanket Finale Modal */
+#cozy-modal {
+  display: none; position: fixed; inset: 0; z-index: 90;
+  background: rgba(2, 6, 23, 0.88); backdrop-filter: blur(6px);
+  align-items: center; justify-content: center;
+}
+.cozy-card {
+  background: linear-gradient(180deg, #311068 0%, #0F172A 100%);
+  border: 6px solid #FDE047; border-radius: 34px; padding: 24px 42px;
+  text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  box-shadow: 0 0 60px rgba(168, 85, 247, 0.65);
+}
+.album-row {
+  display: flex; gap: 10px; background: rgba(2,6,23,0.7);
+  padding: 10px 18px; border-radius: 20px; border: 2px solid #A855F7;
+}
+.g-badge {
+  width: 50px; height: 50px; border-radius: 14px; background: #1E293B;
+  border: 2px solid #475569; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; opacity: 0.3; filter: grayscale(1);
+}
+.g-badge.unlocked {
+  opacity: 1; filter: none; border-color: #FDE047; background: #3B0764;
+  box-shadow: 0 0 12px rgba(253,224,71,0.5);
+}
+.again-btn {
+  background: linear-gradient(135deg, #F59E0B, #EA580C); color: #FFF;
+  border: 4px solid #FEF08A; border-radius: 99px; padding: 13px 34px;
+  font-family: inherit; font-size: 23px; font-weight: 700; cursor: pointer;
+}
