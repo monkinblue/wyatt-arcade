@@ -1,5 +1,5 @@
 /* Offline shell for the Wyatt & Emma Pixel WebAPK. */
-const CACHE = 'wyatt-emma-arcade-v21';
+const CACHE = 'wyatt-emma-arcade-v22';
 
 const SHELL = [
   '/',
@@ -54,14 +54,7 @@ const SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    await Promise.all(SHELL.map(async (url) => {
-      try {
-        const response = await fetch(url);
-        if (response && response.ok) await cache.put(url, response);
-      } catch (err) {
-        /* A missing optional file must not block installation. */
-      }
-    }));
+    await Promise.allSettled(SHELL.map((url) => cache.add(url)));
     await self.skipWaiting();
   })());
 });

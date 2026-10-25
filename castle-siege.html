@@ -26,8 +26,8 @@
     </header>
 
     <main class="battle-wrap" id="battle-wrap">
-      <div class="sky-toast" id="sky-toast">Dial Angle & Power (or drag near cannon) and press 🔥 FIRE!</div>
-      <canvas id="siege-canvas"></canvas>
+      <div class="sky-toast" id="sky-toast">Destroy the 👹 Goblin King OR Enemy Cannon to Win!</div>
+      <canvas id="siege-canvas" width="1280" height="620"></canvas>
     </main>
 
     <footer class="cockpit-bar">
@@ -43,16 +43,16 @@
       <div class="dial-box">
         <button class="step-btn" id="pwr-minus">−</button>
         <div class="slider-col">
-          <div class="slider-lbl"><span>⚡ POWER</span><b id="pwr-val">68</b></div>
-          <input type="range" id="pwr-slider" min="20" max="100" value="68">
+          <div class="slider-lbl"><span>⚡ POWER</span><b id="pwr-val">62</b></div>
+          <input type="range" id="pwr-slider" min="20" max="100" value="62">
         </div>
         <button class="step-btn" id="pwr-plus">+</button>
       </div>
 
       <div class="ammo-bar">
         <button class="ammo-btn active" data-ammo="heavy"><span>💣</span><span>Heavy</span></button>
-        <button class="ammo-btn" data-ammo="cluster"><span>✨</span><span>Split x3</span><small id="cnt-cluster">2 left</small></button>
-        <button class="ammo-btn" data-ammo="bouncer"><span>🏀</span><span>Bounce</span><small id="cnt-bouncer">2 left</small></button>
+        <button class="ammo-btn" data-ammo="cluster"><span>✨</span><span>Split x3</span><small id="cnt-cluster">3 left</small></button>
+        <button class="ammo-btn" data-ammo="bouncer"><span>🏀</span><span>Bounce</span><small id="cnt-bouncer">3 left</small></button>
       </div>
 
       <button class="fire-btn" id="fire-btn">🔥 FIRE!</button>
@@ -62,8 +62,8 @@
   <div id="siege-modal">
     <div class="modal-card">
       <div style="font-size:60px;" id="modal-icon">🏆💥🏰</div>
-      <div style="font-size:36px;font-weight:700;color:#FDE047;" id="modal-title">CASTLE TOPPLED!</div>
-      <div style="font-size:19px;color:#CBD5E1;" id="modal-sub">Direct hit on the Goblin Fortress!</div>
+      <div style="font-size:36px;font-weight:700;color:#FDE047;" id="modal-title">VICTORY!</div>
+      <div style="font-size:19px;color:#CBD5E1;" id="modal-sub">Enemy defenses obliterated!</div>
       <button class="fire-btn" id="next-wave-btn" style="padding:12px 34px;height:auto;">⚔️ Next Siege!</button>
     </div>
   </div>
@@ -74,12 +74,15 @@
     const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
     const isEmma = profile === 'emma';
 
-    // Zoomed-Out World Space (1280 wide, dynamic proportional height so nothing ever stretches!)
+    // Fixed, crash-proof internal world resolution (1280x620) — never wipes canvas during resize!
     const W = 1280;
-    let H = 640;
-    const TIME_STEP = 0.46; // Slow-motion cinematic cannonball flight!
+    const H = 620;
+    const TIME_STEP = 0.44;  // Smooth slow-motion flight
+    const SPEED_MUL = 0.228; // Plenty of range to easily reach back walls even into headwinds!
 
     const canvas = document.getElementById('siege-canvas');
+    canvas.width = W;
+    canvas.height = H;
     const ctx = canvas.getContext('2d');
 
     function syncViewport() {
@@ -90,23 +93,12 @@
         document.documentElement.style.setProperty('--app-w', `${vw}px`);
         document.documentElement.style.setProperty('--app-h', `${vh}px`);
       }
-      const wrap = document.getElementById('battle-wrap');
-      if (wrap && wrap.clientWidth > 0 && wrap.clientHeight > 0) {
-        const newH = Math.max(520, Math.min(920, Math.round(W * (wrap.clientHeight / wrap.clientWidth))));
-        if (Math.abs(newH - H) > 20 && !ground) {
-          H = newH;
-        }
-        canvas.width = W;
-        canvas.height = H;
-      }
     }
     window.addEventListener('resize', syncViewport);
     window.addEventListener('pageshow', syncViewport);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
-    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
-    syncViewport();
+    [0, 80, 250, 600].forEach(ms => setTimeout(syncViewport, ms));
 
-    // 32-Bit Painted Backdrop Loader
     const bgImg = new Image();
     let bgReady = false;
     const bgPaths = ['images/siege-bg.jpg', 'images/siege-bg.jpeg', 'images/siege-bg.png', 'siege-bg.jpg'];
@@ -119,21 +111,23 @@
     let worldIdx = 0;
     let wave = 1;
     let activeTurn = 'left';
-    let shotsLeft = 5;
+    let shotsLeft = 6;
     let wind = 0;
     let ground = null;
     let blocks = [];
     let targets = [];
     let projectiles = [];
     let particles = [];
-    let windLeaves = Array.from({ length: 20 }, () => ({ x: Math.random() * W, y: Math.random() * 420 }));
+    let popups = [];
+    let windLeaves = Array.from({ length: 20 }, () => ({ x: Math.random() * W, y: Math.random() * 400 }));
 
     const playerState = {
-      left:  { angle: 48, power: 68, ghost: [], ammo: { cluster: 2, bouncer: 2 } },
-      right: { angle: 48, power: 68, ghost: [], ammo: { cluster: 2, bouncer: 2 } }
+      left:  { angle: 48, power: 62, ghost: [], ammo: { cluster: 3, bouncer: 3 } },
+      right: { angle: 48, power: 62, ghost: [], ammo: { cluster: 3, bouncer: 3 } }
     };
     let selectedAmmo = 'heavy';
     let canSplitMidAir = false;
+    let lastWinFlag = false;
     let audioCtx = null;
 
     function initAudio() {
@@ -141,34 +135,35 @@
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    function playBoom(freq = 110, dur = 0.35, type = 'sawtooth', vol = 0.28) {
-      initAudio();
-      const now = audioCtx.currentTime;
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, now);
-      o.frequency.exponentialRampToValueAtTime(28, now + dur);
-      g.gain.setValueAtTime(vol, now);
-      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(now); o.stop(now + dur);
+    function playBoom(freq = 110, dur = 0.35, type = 'sawtooth', vol = 0.26) {
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, now);
+        o.frequency.exponentialRampToValueAtTime(28, now + dur);
+        g.gain.setValueAtTime(vol, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(now); o.stop(now + dur);
+      } catch (_) {}
     }
 
-    // Cannons Sit on Dedicated Front Battlements IN FRONT of Their Castles (Zero Self-Hits!)
     function getCannonPos(side) {
-      const x = side === 'left' ? 212 : W - 212;
-      return { x, y: ground[x] - 11 };
+      const x = side === 'left' ? 265 : W - 265;
+      return { x, y: SiegeBuilder.groundAt(ground, x) - 12 };
     }
 
     function rollWind() {
-      if (isEmma && wave === 1 && mode === 'puzzle') {
+      if (isEmma && wave === 1) {
         wind = 0;
       } else {
-        const mph = Math.round((Math.random() - 0.5) * 12);
-        wind = mph * 0.0038;
+        const mph = Math.round((Math.random() - 0.5) * 10);
+        wind = mph * 0.0032;
       }
-      const mphDisp = Math.round(Math.abs(wind) / 0.0038);
-      const arrow = wind > 0.002 ? '➡️' : (wind < -0.002 ? '⬅️' : '⏺️');
+      const mphDisp = Math.round(Math.abs(wind) / 0.0032);
+      const arrow = wind > 0.001 ? '➡️' : (wind < -0.001 ? '⬅️' : '⏺️');
       document.getElementById('wind-pill').textContent = mphDisp === 0
         ? '🌬️ Wind: CALM (0)'
         : `🌬️ Wind: ${arrow} ${mphDisp} mph`;
@@ -194,59 +189,60 @@
 
     function setupBattle(resetWave = false) {
       if (resetWave) wave = 1;
-      const wrap = document.getElementById('battle-wrap');
-      if (wrap && wrap.clientWidth > 0 && wrap.clientHeight > 0) {
-        H = Math.max(520, Math.min(920, Math.round(W * (wrap.clientHeight / wrap.clientWidth))));
-        canvas.width = W;
-        canvas.height = H;
-      }
-
+      lastWinFlag = false;
       document.getElementById('siege-modal').style.display = 'none';
       projectiles = [];
       particles = [];
+      popups = [];
       canSplitMidAir = false;
       activeTurn = 'left';
-      shotsLeft = isEmma ? 6 : 5;
+      shotsLeft = isEmma ? 7 : 6;
 
       playerState.left.ghost = [];
       playerState.right.ghost = [];
-      playerState.left.ammo = { cluster: 2, bouncer: 2 };
-      playerState.right.ammo = { cluster: 2, bouncer: 2 };
+      playerState.left.ammo = { cluster: 3, bouncer: 3 };
+      playerState.right.ammo = { cluster: 3, bouncer: 3 };
       selectedAmmo = 'heavy';
 
       ground = SiegeBuilder.createTerrain(W, H, wave);
-      const rightFort = SiegeBuilder.buildFortress('right', ground, W, wave, isEmma);
+      const hasTurrets = mode !== 'puzzle';
+      const rightFort = SiegeBuilder.buildFortress('right', ground, W, wave, isEmma, hasTurrets);
       blocks = [...rightFort.blocks];
       targets = [...rightFort.targets];
 
       if (mode !== 'puzzle') {
-        const leftFort = SiegeBuilder.buildFortress('left', ground, W, wave, isEmma);
+        const leftFort = SiegeBuilder.buildFortress('left', ground, W, wave, isEmma, true);
         blocks.push(...leftFort.blocks);
         targets.push(...leftFort.targets);
       }
 
       rollWind();
-      document.getElementById('fire-btn').disabled = false;
-      document.getElementById('fire-btn').textContent = '🔥 FIRE!';
-      document.getElementById('fire-btn').classList.remove('split-ready');
-      document.getElementById('sky-toast').textContent = mode === 'pass'
-        ? 'Player 1 (Left Castle): Aim & Fire!'
-        : 'Smash the Goblin Targets! Snipe 🧨 TNT for a chain reaction!';
+      const fireBtn = document.getElementById('fire-btn');
+      fireBtn.disabled = false;
+      fireBtn.textContent = '🔥 FIRE!';
+      fireBtn.classList.remove('split-ready');
+      document.getElementById('sky-toast').textContent = mode === 'puzzle'
+        ? '🎯 Smash the 👹 Goblin King (or blow up 🧨 TNT) to Win!'
+        : '⚔️ Hit EITHER the Enemy Cannon 🎯 OR the 👹 Goblin King to Win!';
       syncControlsUI();
     }
 
+    function addPopup(x, y, text, color = '#FDE047') {
+      popups.push({ x, y, text, color, life: 48 });
+    }
+
     function detonate(x, y, radius, dmg) {
-      playBoom(radius > 36 ? 85 : 130, 0.36);
+      playBoom(radius > 42 ? 85 : 130, 0.36);
       document.body.classList.add('boom-shake');
       setTimeout(() => document.body.classList.remove('boom-shake'), 170);
 
       SiegeBuilder.carveCrater(ground, x, y, radius, H);
 
-      for (let i = 0; i < 24; i++) {
-        const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 5.5;
+      for (let i = 0; i < 26; i++) {
+        const a = Math.random() * Math.PI * 2, sp = 1.6 + Math.random() * 6;
         particles.push({
-          x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
-          color: ['#FDE047', '#F97316', '#EF4444', '#FFFFFF'][i % 4], life: 32 + Math.random() * 14
+          x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.8,
+          color: ['#FDE047', '#F97316', '#EF4444', '#FFFFFF'][i % 4], life: 34 + Math.random() * 14
         });
       }
 
@@ -254,38 +250,47 @@
       for (let i = blocks.length - 1; i >= 0; i--) {
         const b = blocks[i];
         const bx = b.x + b.w / 2, by = b.y + b.h / 2;
-        if (Math.hypot(bx - x, by - y) <= radius + 14) {
+        if (Math.hypot(bx - x, by - y) <= radius + 16) {
           b.hp -= dmg;
           if (b.hp <= 0) {
             blocks.splice(i, 1);
-            if (b.mat === 'tnt') chainTNTs.push({ x: bx, y: by });
+            if (b.mat === 'tnt') {
+              addPopup(bx, by - 16, '🧨 BOOM!!', '#EF4444');
+              chainTNTs.push({ x: bx, y: by });
+            }
           }
         }
       }
 
       for (let i = targets.length - 1; i >= 0; i--) {
         const t = targets[i];
-        if (Math.hypot(t.x - x, t.y - y) <= radius + t.r) {
+        if (Math.hypot(t.x - x, t.y - y) <= radius + t.r + 8) {
           t.hp -= dmg;
-          if (t.hp <= 0) targets.splice(i, 1);
+          if (t.hp <= 0) {
+            addPopup(t.x, t.y - 20, t.kind === 'turret' ? '💥 CANNON DESTROYED!' : '👑 KING KO!', '#06D6A0');
+            targets.splice(i, 1);
+          } else {
+            addPopup(t.x, t.y - 18, '💥 DIRECT HIT!', '#FDE047');
+          }
         }
       }
 
-      chainTNTs.forEach(keg => setTimeout(() => detonate(keg.x, keg.y, 52, 3), 120));
+      // Huge TNT Chain Blast wipes out nearby walls & bosses!
+      chainTNTs.forEach(keg => setTimeout(() => detonate(keg.x, keg.y, 76, 4), 110));
     }
 
     function launchShot(side, angleDeg, power, ammoType) {
       const pos = getCannonPos(side);
       const launchRad = side === 'left' ? (angleDeg * Math.PI) / 180 : ((180 - angleDeg) * Math.PI) / 180;
-      const speed = power * 0.195;
+      const speed = power * SPEED_MUL;
 
       playBoom(240, 0.2, 'triangle', 0.24);
       if (side === 'left' || mode === 'pass') playerState[side].ghost = [];
 
       projectiles.push({
         side, ammo: ammoType, age: 0,
-        x: pos.x + Math.cos(launchRad) * 20,
-        y: pos.y - Math.sin(launchRad) * 20,
+        x: pos.x + Math.cos(launchRad) * 22,
+        y: pos.y - Math.sin(launchRad) * 22,
         vx: Math.cos(launchRad) * speed,
         vy: -Math.sin(launchRad) * speed,
         bounces: ammoType === 'bouncer' ? 2 : 0,
@@ -303,25 +308,31 @@
       }
     }
 
+    // Win Condition: Knocking out EITHER the Enemy King OR the Enemy Cannon Turret wins immediately!
+    function sideDefeated(side) {
+      const hasKing = targets.some(t => t.side === side && t.kind === 'king');
+      const hasTurret = mode === 'puzzle' ? true : targets.some(t => t.side === side && t.kind === 'turret');
+      return !hasKing || !hasTurret;
+    }
+
     function endTurnAfterSettle() {
       canSplitMidAir = false;
       const fireBtn = document.getElementById('fire-btn');
       fireBtn.classList.remove('split-ready');
       fireBtn.textContent = '🔥 FIRE!';
 
-      const rightAlive = targets.some(t => t.side === 'right');
-      const leftAlive = mode === 'puzzle' ? true : targets.some(t => t.side === 'left');
-
-      if (!rightAlive) {
+      if (sideDefeated('right')) {
+        lastWinFlag = true;
         document.getElementById('modal-icon').textContent = '🏆💥👑';
-        document.getElementById('modal-title').textContent = mode === 'pass' ? 'LEFT CASTLE WINS!' : 'CASTLE TOPPLED!';
-        document.getElementById('modal-sub').textContent = `Wave ${wave} Cleared! Ready for the next siege?`;
+        document.getElementById('modal-title').textContent = mode === 'pass' ? 'LEFT CASTLE WINS!' : 'ENEMY DEFEATED!';
+        document.getElementById('modal-sub').textContent = `Wave ${wave} Cleared! Awesome artillery shot!`;
         document.getElementById('siege-modal').style.display = 'flex';
         return;
       }
-      if (!leftAlive) {
+      if (mode !== 'puzzle' && sideDefeated('left')) {
+        lastWinFlag = false;
         document.getElementById('modal-icon').textContent = '💥🛡️⚔️';
-        document.getElementById('modal-title').textContent = mode === 'pass' ? 'RIGHT CASTLE WINS!' : 'GOBLINS GOT LUCKY!';
+        document.getElementById('modal-title').textContent = mode === 'pass' ? 'RIGHT CASTLE WINS!' : 'GOBLINS GOT YOUR BASE!';
         document.getElementById('modal-sub').textContent = 'Rebuild your fortress and blast them back!';
         document.getElementById('siege-modal').style.display = 'flex';
         return;
@@ -330,9 +341,10 @@
       if (mode === 'puzzle') {
         shotsLeft--;
         if (shotsLeft <= 0) {
+          lastWinFlag = false;
           document.getElementById('modal-icon').textContent = '💣🔄🏰';
           document.getElementById('modal-title').textContent = 'OUT OF CANNONBALLS!';
-          document.getElementById('modal-sub').textContent = 'Use your ghost trail to dial in the next siege!';
+          document.getElementById('modal-sub').textContent = 'Try again — snipe the red TNT block!';
           document.getElementById('siege-modal').style.display = 'flex';
           return;
         }
@@ -354,14 +366,14 @@
             const aiPos = getCannonPos('right');
             const heroTarget = targets.find(t => t.side === 'left') || getCannonPos('left');
             const world = SIEGE_WORLDS[worldIdx];
-            const shot = SiegeBuilder.solveAIShot(aiPos.x, aiPos.y, heroTarget.x, heroTarget.y, wind, world.grav, wave, TIME_STEP);
+            const shot = SiegeBuilder.solveAIShot(aiPos.x, aiPos.y, heroTarget.x, heroTarget.y, wind, world.grav, wave, TIME_STEP, SPEED_MUL);
             launchShot('right', 180 - shot.angle, shot.power, 'heavy');
-          }, 900);
+          }, 850);
         } else {
           activeTurn = 'left';
           rollWind();
           fireBtn.disabled = false;
-          document.getElementById('sky-toast').textContent = '🟢 Your Turn! Follow your white ghost dots to adjust!';
+          document.getElementById('sky-toast').textContent = '🟢 Your Turn! Hit the 🎯 Red Cannon OR 👹 Goblin King!';
           syncControlsUI();
         }
       }
@@ -390,10 +402,10 @@
       canSplitMidAir = false;
       const p = projectiles[0];
       playBoom(420, 0.18, 'square', 0.24);
-      [-1.9, 0, 1.9].forEach(spread => {
+      [-2.2, 0, 2.2].forEach(spread => {
         projectiles.push({
-          side: p.side, ammo: 'mini', age: 20, x: p.x, y: p.y,
-          vx: p.vx + spread, vy: p.vy - 1.1, bounces: 0, recordGhost: false
+          side: p.side, ammo: 'mini', age: 22, x: p.x, y: p.y,
+          vx: p.vx + spread, vy: p.vy - 1.0, bounces: 0, recordGhost: false
         });
       });
       projectiles.shift();
@@ -450,7 +462,7 @@
     };
 
     document.getElementById('next-wave-btn').onpointerdown = () => {
-      if (targets.every(t => t.side !== 'right')) wave++;
+      if (lastWinFlag) wave++;
       setupBattle(false);
     };
 
@@ -460,9 +472,9 @@
       tick++;
       const world = SIEGE_WORLDS[worldIdx];
 
-      // 1. Structural Block & Target Gravity
+      // 1. Safe Gravity Settling for Blocks & Targets
       blocks.forEach((b, idx) => {
-        let supportY = ground[Math.floor(b.x + b.w / 2)];
+        let supportY = SiegeBuilder.groundAt(ground, b.x + b.w / 2);
         blocks.forEach((other, j) => {
           if (idx !== j && Math.abs(other.x - b.x) < b.w * 0.78 && other.y > b.y) {
             supportY = Math.min(supportY, other.y);
@@ -472,27 +484,32 @@
           b.vy += 0.25;
           b.y = Math.min(supportY - b.h, b.y + b.vy);
         } else {
-          if (b.vy > 4.8) b.hp--;
+          if (b.vy > 4.6) b.hp--;
           b.vy = 0; b.y = supportY - b.h;
         }
       });
+      blocks = blocks.filter(b => b.hp > 0);
 
       targets.forEach(t => {
-        let supportY = ground[Math.floor(t.x)];
+        if (t.kind === 'turret') {
+          t.y = SiegeBuilder.groundAt(ground, t.x) - 12;
+          return;
+        }
+        let supportY = SiegeBuilder.groundAt(ground, t.x);
         blocks.forEach(b => {
-          if (t.x >= b.x - 3 && t.x <= b.x + b.w + 3 && b.y >= t.y) supportY = Math.min(supportY, b.y);
+          if (t.x >= b.x - 4 && t.x <= b.x + b.w + 4 && b.y >= t.y) supportY = Math.min(supportY, b.y);
         });
         if (t.y + t.r < supportY - 1) {
           t.vy += 0.25;
           t.y = Math.min(supportY - t.r, t.y + t.vy);
         } else {
-          if (t.vy > 5.4) t.hp = 0;
+          if (t.vy > 4.8) t.hp = 0;
           t.vy = 0; t.y = supportY - t.r;
         }
       });
       targets = targets.filter(t => t.hp > 0);
 
-      // 2. Slow-Motion Cinematic Projectile Step!
+      // 2. Projectile Step
       const hadProj = projectiles.length > 0;
       for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i];
@@ -506,31 +523,29 @@
           playerState[p.side].ghost.push({ x: p.x, y: p.y });
         }
 
-        if (p.x < -30 || p.x > W + 30 || p.y > H + 40) {
+        if (p.x < -40 || p.x > W + 40 || p.y > H + 50) {
           projectiles.splice(i, 1);
           continue;
         }
 
-        const gx = Math.max(0, Math.min(W - 1, Math.floor(p.x)));
-        const hitGround = p.y >= ground[gx];
-        // Ignore own-side blocks during initial launch grace so cannons never clip own castle!
+        const hitGround = p.y >= SiegeBuilder.groundAt(ground, p.x);
         const hitBlock = blocks.some(b =>
-          (p.age > 16 || b.side !== p.side) &&
+          (p.age > 18 || b.side !== p.side) &&
           p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h
         );
         const hitTarget = targets.some(t =>
-          (p.age > 16 || t.side !== p.side) &&
-          Math.hypot(p.x - t.x, p.y - t.y) <= t.r + 5
+          (p.age > 18 || t.side !== p.side) &&
+          Math.hypot(p.x - t.x, p.y - t.y) <= t.r + 7
         );
 
         if (hitGround || hitBlock || hitTarget) {
           if (p.bounces > 0 && hitGround) {
             p.bounces--;
-            p.y = ground[gx] - 3;
+            p.y = SiegeBuilder.groundAt(ground, p.x) - 3;
             p.vy = -Math.abs(p.vy) * 0.72;
-            detonate(p.x, p.y, 20, 1);
+            detonate(p.x, p.y, 26, 1);
           } else {
-            const rad = p.ammo === 'heavy' ? 35 : 26;
+            const rad = p.ammo === 'heavy' ? 44 : 32;
             const dmg = p.ammo === 'heavy' ? 2 : 1;
             detonate(p.x, p.y, rad, dmg);
             projectiles.splice(i, 1);
@@ -538,107 +553,111 @@
         }
       }
 
-      if (hadProj && projectiles.length === 0) settleWait = 32;
+      if (hadProj && projectiles.length === 0) settleWait = 30;
       if (settleWait > 0) {
         settleWait--;
         if (settleWait === 0) endTurnAfterSettle();
       }
 
-      // 3. Draw Sky Backdrop (Cover-Aspect Scaled so Pixels Never Stretch!)
+      // 3. Draw Sky Backdrop
       ctx.clearRect(0, 0, W, H);
       if (bgReady && worldIdx === 0) {
-        const imgAspect = bgImg.naturalWidth / bgImg.naturalHeight;
-        const canAspect = W / H;
-        let dw = W, dh = H, dx = 0, dy = 0;
-        if (canAspect > imgAspect) { dh = W / imgAspect; dy = (H - dh) * 0.5; }
-        else { dw = H * imgAspect; dx = (W - dw) * 0.5; }
-        ctx.drawImage(bgImg, dx, dy, dw, dh);
+        ctx.drawImage(bgImg, 0, 0, W, H);
       } else {
         const g = ctx.createLinearGradient(0, 0, 0, H);
         g.addColorStop(0, world.skyTop); g.addColorStop(1, world.skyBot);
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
       }
 
-      // Wind Drift Specks
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       windLeaves.forEach(lf => {
-        lf.x += wind * 180 + 0.12;
-        lf.y += 0.18;
-        if (lf.x > W) lf.x = 0;
-        if (lf.x < 0) lf.x = W;
+        lf.x += wind * 180 + 0.12; lf.y += 0.18;
+        if (lf.x > W) lf.x = 0; if (lf.x < 0) lf.x = W;
         if (lf.y > H * 0.72) lf.y = 12;
         ctx.fillRect(lf.x, lf.y, 5, 2.5);
       });
 
-      // 4. Draw Destructible Valley Terrain
+      // 4. Draw Destructible Terrain
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(0, H);
       for (let x = 0; x < W; x += 2) ctx.lineTo(x, ground[x]);
       ctx.lineTo(W, H);
       ctx.closePath();
-      ctx.fillStyle = world.dirt;
-      ctx.fill();
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = world.rock;
-      ctx.stroke();
+      ctx.fillStyle = world.dirt; ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = world.rock; ctx.stroke();
       ctx.restore();
 
-      // 5. Ghost Trail Dots
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.36)';
+      // 5. Previous Shot Ghost Trail
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.38)';
       playerState[activeTurn].ghost.forEach(pt => {
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.8, 0, Math.PI * 2); ctx.fill();
       });
 
-      // 6. Short Muzzle Sightline
+      // 6. Curved 12-Dot Parabolic Launch Preview (Shows Initial Arc Shape!)
       if (projectiles.length === 0 && (activeTurn === 'left' || mode === 'pass')) {
         const cPos = getCannonPos(activeTurn);
         const st = playerState[activeTurn];
         const rad = activeTurn === 'left' ? (st.angle * Math.PI) / 180 : ((180 - st.angle) * Math.PI) / 180;
-        const reach = 28 + st.power * 0.55;
-        ctx.save();
-        ctx.strokeStyle = '#FDE047';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([6, 6]);
-        ctx.beginPath();
-        ctx.moveTo(cPos.x, cPos.y);
-        ctx.lineTo(cPos.x + Math.cos(rad) * reach, cPos.y - Math.sin(rad) * reach);
-        ctx.stroke();
-        ctx.restore();
+        const speed = st.power * SPEED_MUL;
+        let sx = cPos.x + Math.cos(rad) * 22, sy = cPos.y - Math.sin(rad) * 22;
+        let svx = Math.cos(rad) * speed, svy = -Math.sin(rad) * speed;
+
+        for (let step = 1; step <= 72; step++) {
+          svx += wind * TIME_STEP;
+          svy += world.grav * TIME_STEP;
+          sx += svx * TIME_STEP;
+          sy += svy * TIME_STEP;
+          if (step % 6 === 0) {
+            ctx.fillStyle = `rgba(253, 224, 71, ${1 - step / 80})`;
+            ctx.beginPath(); ctx.arc(sx, sy, 3.2, 0, Math.PI * 2); ctx.fill();
+          }
+        }
       }
 
-      // 7. Draw Scaled-Down Fortress Blocks
+      // 7. Fortress Blocks
       const matColors = { stone: '#64748B', wood: '#B45309', ice: '#38BDF8', tnt: '#DC2626' };
       blocks.forEach(b => {
         ctx.fillStyle = matColors[b.mat];
         ctx.strokeStyle = b.hp < b.maxHp ? '#FEF08A' : '#0F172A';
         ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(b.x, b.y, b.w, b.h, 4);
-        ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 4); ctx.fill(); ctx.stroke();
         if (b.mat === 'tnt') {
-          ctx.font = 'bold 9px Fredoka, sans-serif';
+          ctx.font = 'bold 10px Fredoka, sans-serif';
           ctx.fillStyle = '#FEF08A'; ctx.textAlign = 'center';
-          ctx.fillText('TNT', b.x + b.w / 2, b.y + 12);
+          ctx.fillText('TNT', b.x + b.w / 2, b.y + 13);
         }
       });
 
-      // 8. Draw Compact Targets & Front Battlement Cannons
+      // 8. Draw King Bosses + Targetable Cannons with Live Health Bars!
       targets.forEach(t => {
-        ctx.font = `${Math.round(t.r * 1.85)}px sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(t.icon, t.x, t.y);
+        if (t.kind === 'king') {
+          // Pulsing target ring on enemy King so kids always see the goal!
+          if (t.side === 'right') {
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, t.r + 4 + Math.sin(tick * 0.15) * 3, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          ctx.font = '32px sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(t.icon, t.x, t.y);
+        }
+        // Health Bar above every King & Turret!
+        const barW = 34, barH = 6;
+        ctx.fillStyle = '#0F172A';
+        ctx.fillRect(t.x - barW / 2, t.y - 28, barW, barH);
+        ctx.fillStyle = t.side === 'left' ? '#06D6A0' : '#EF4444';
+        ctx.fillRect(t.x - barW / 2 + 1, t.y - 27, (barW - 2) * (t.hp / t.maxHp), barH - 2);
       });
 
       ['left', ...(mode === 'puzzle' ? [] : ['right'])].forEach(side => {
+        const turretAlive = mode === 'puzzle' ? true : targets.some(t => t.side === side && t.kind === 'turret');
+        if (!turretAlive) return;
         const cPos = getCannonPos(side);
-        // Stone Battlement Pedestal under Cannon
-        ctx.fillStyle = '#475569';
-        ctx.strokeStyle = '#0F172A';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(cPos.x - 14, cPos.y + 2, 28, 12, 4);
-        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#475569'; ctx.strokeStyle = '#0F172A'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.roundRect(cPos.x - 15, cPos.y + 2, 30, 12, 4); ctx.fill(); ctx.stroke();
 
         const ang = side === 'left' ? playerState.left.angle : playerState.right.angle;
         const rad = side === 'left' ? (ang * Math.PI) / 180 : ((180 - ang) * Math.PI) / 180;
@@ -647,16 +666,16 @@
         ctx.rotate(-rad);
         ctx.fillStyle = side === 'left' ? '#0EA5E9' : '#EF4444';
         ctx.strokeStyle = '#FFF'; ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.roundRect(0, -5.5, 22, 11, 4); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.roundRect(0, -6, 24, 12, 4); ctx.fill(); ctx.stroke();
         ctx.restore();
         ctx.fillStyle = '#1E293B';
-        ctx.beginPath(); ctx.arc(cPos.x, cPos.y + 3, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cPos.x, cPos.y + 3, 8.5, 0, Math.PI * 2); ctx.fill();
       });
 
-      // 9. Draw Slow-Motion Cannonballs & Sparks
+      // 9. Cannonballs, Sparks & Hit Popups
       projectiles.forEach(p => {
         ctx.fillStyle = p.ammo === 'cluster' ? '#38BDF8' : (p.ammo === 'bouncer' ? '#F97316' : '#FDE047');
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.ammo === 'mini' ? 4.5 : 6.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.ammo === 'mini' ? 5 : 7, 0, Math.PI * 2); ctx.fill();
         ctx.lineWidth = 2; ctx.strokeStyle = '#0F172A'; ctx.stroke();
       });
 
@@ -665,7 +684,18 @@
         p.x += p.vx; p.y += p.vy; p.vy += 0.14; p.life--;
         if (p.life <= 0) { particles.splice(i, 1); continue; }
         ctx.fillStyle = p.color;
-        ctx.fillRect(p.x, p.y, 4.5, 4.5);
+        ctx.fillRect(p.x, p.y, 5, 5);
+      }
+
+      for (let i = popups.length - 1; i >= 0; i--) {
+        const pop = popups[i];
+        pop.y -= 0.9; pop.life--;
+        if (pop.life <= 0) { popups.splice(i, 1); continue; }
+        ctx.font = 'bold 18px Fredoka, sans-serif';
+        ctx.fillStyle = pop.color; ctx.strokeStyle = '#090D16'; ctx.lineWidth = 4;
+        ctx.textAlign = 'center';
+        ctx.strokeText(pop.text, pop.x, pop.y);
+        ctx.fillText(pop.text, pop.x, pop.y);
       }
 
       requestAnimationFrame(render);
