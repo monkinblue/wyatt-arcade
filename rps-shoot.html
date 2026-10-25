@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Rock Paper Scissors SHOOT!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rps-shoot.css">
+</head>
+<body>
+  <div id="rps-app">
+    <header>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a href="index.html" class="nav-btn">🏠 Back</a>
+        <button class="voice-btn" id="voice-btn">🎙️ Voice: Wyatt</button>
+      </div>
+
+      <div class="score-row">
+        <div class="streak-pill" id="streak-pill">🔥 Streak: <span id="streak-val">0</span></div>
+        <div class="best-pill">👑 Best: <span id="best-val">0</span></div>
+      </div>
+    </header>
+
+    <main class="arena-box">
+      <canvas id="fx-canvas" width="960" height="420"></canvas>
+
+      <div class="side-fighter">
+        <div class="fighter-tag" id="kid-tag">🐉 WYATT</div>
+        <div class="hand-orb" id="kid-orb">✊</div>
+      </div>
+
+      <div class="center-callout">
+        <div class="chant-word" id="chant-word">READY?</div>
+        <div class="shoot-timer-wrap" id="timer-wrap">
+          <div class="shoot-timer-bar" id="timer-bar"></div>
+        </div>
+        <button class="go-btn" id="go-btn">▶️ PLAY!</button>
+      </div>
+
+      <div class="side-fighter">
+        <div class="fighter-tag" id="bot-tag">🤖 ROBO-BOT</div>
+        <div class="hand-orb" id="bot-orb">✊</div>
+      </div>
+    </main>
+
+    <footer class="throw-bar">
+      <button class="throw-btn locked" data-choice="rock">
+        <span class="t-icon">🪨</span><span class="t-lbl">ROCK</span>
+      </button>
+      <button class="throw-btn locked" data-choice="paper">
+        <span class="t-icon">📄</span><span class="t-lbl">PAPER</span>
+      </button>
+      <button class="throw-btn locked" data-choice="scissors">
+        <span class="t-icon">✂️</span><span class="t-lbl">SCISSORS</span>
+      </button>
+    </footer>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const profile = params.get('kid') || localStorage.getItem('activeKid') || 'wyatt';
+    const isEmma = profile === 'emma';
+
+    function syncViewport() {
+      const vv = window.visualViewport;
+      const w = Math.round(vv ? vv.width : document.documentElement.clientWidth || window.innerWidth);
+      const h = Math.round(vv ? vv.height : document.documentElement.clientHeight || window.innerHeight);
+      if (w > 0 && h > 0) {
+        document.documentElement.style.setProperty('--app-w', `${w}px`);
+        document.documentElement.style.setProperty('--app-h', `${h}px`);
+      }
+    }
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('pageshow', syncViewport);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', syncViewport);
+    if ('ResizeObserver' in window) new ResizeObserver(syncViewport).observe(document.documentElement);
+    [0, 80, 250].forEach(ms => setTimeout(syncViewport, ms));
+
+    // Preload Wyatt & Emma Custom M4A Recordings!
+    const kidAudio = {
+      wyatt: new Audio('audio/wyattrps.m4a'),
+      emma:  new Audio('audio/emmarps.m4a')
+    };
+    kidAudio.wyatt.preload = 'auto';
+    kidAudio.emma.preload = 'auto';
+
+    let voiceKid = isEmma ? 'emma' : 'wyatt';
+    const bestKey = `rpsBest_${profile}`;
+    let streak = 0;
+    let bestStreak = Number(localStorage.getItem(bestKey) || 0);
+
+    document.getElementById('kid-tag').textContent = isEmma ? '🐶 EMMA' : '🐉 WYATT';
+    document.getElementById('best-val').textContent = bestStreak;
+
+    function syncVoiceLabel() {
+      document.getElementById('voice-btn').textContent = voiceKid === 'emma' ? '🎙️ Voice: Emma' : '🎙️ Voice: Wyatt';
+    }
+    syncVoiceLabel();
+
+    document.getElementById('voice-btn').onpointerdown = () => {
+      voiceKid = voiceKid === 'wyatt' ? 'emma' : 'wyatt';
+      syncVoiceLabel();
+    };
+
+    const THROWS = {
+      rock:     { icon: '🪨', beats: 'scissors', verb: 'SMASHES' },
+      paper:    { icon: '📄', beats: 'rock',     verb: 'WRAPS' },
+      scissors: { icon: '✂️', beats: 'paper',    verb: 'SNIPS' }
+    };
+    const KEYS = ['rock', 'paper', 'scissors'];
+    const SHOOT_WINDOW_MS = isEmma ? 2100 : 1750;
+
+    let state = 'idle'; // 'idle' | 'chant' | 'shoot' | 'result'
+    let shootDeadline = 0;
+    let shootRaf = null;
+    let chantTimers = [];
+    let audioCtx = null;
+
+    // Fireworks Confetti Engine
+    const fxCanvas = document.getElementById('fx-canvas');
+    const fxCtx = fxCanvas.getContext('2d');
+    let particles = [];
+
+    function spawnFireworks(count = 50) {
+      const colors = ['#FDE047', '#06D6A0', '#38BDF8', '#F43F5E', '#A855F7', '#FFFFFF'];
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 3 + Math.random() * 12;
+        particles.push({
+          x: 480 + (Math.random() - 0.5) * 260,
+          y: 200 + (Math.random() - 0.5) * 90,
+          vx: Math.cos(a) * sp,
+          vy: Math.sin(a) * sp - 3.5,
+          color: colors[i % colors.length],
+          sz: 7 + Math.random() * 8,
+          life: 58 + Math.random() * 24
+        });
+      }
+    }
+
+    function renderFX() {
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        fxCtx.fillStyle = p.color;
+        fxCtx.fillRect(p.x, p.y, p.sz, p.sz * 0.7);
+      }
+      requestAnimationFrame(renderFX);
+    }
+    renderFX();
+
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playSynth(f1, f2, dur = 0.16, type = 'triangle', vol = 0.24) {
+      initAudio();
+      const now = audioCtx.currentTime;
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f1, now);
+      o.frequency.exponentialRampToValueAtTime(Math.max(40, f2), now + dur);
+      g.gain.setValueAtTime(vol, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(now); o.stop(now + dur);
+    }
+
+    function updateStreakUI(didBump = false) {
+      document.getElementById('streak-val').textContent = streak;
+      document.getElementById('best-val').textContent = bestStreak;
+      document.body.classList.remove('fever-1', 'fever-2', 'fever-3');
+      if (streak >= 5) document.body.classList.add('fever-3');
+      else if (streak >= 3) document.body.classList.add('fever-2');
+      else if (streak >= 1) document.body.classList.add('fever-1');
+
+      if (didBump) {
+        const pill = document.getElementById('streak-pill');
+        pill.classList.remove('bump');
+        void pill.offsetWidth;
+        pill.classList.add('bump');
+      }
+    }
+
+    function setButtonsLocked(locked) {
+      document.querySelectorAll('.throw-btn').forEach(btn => {
+        btn.classList.toggle('locked', locked);
+        btn.classList.toggle('unlocked', !locked);
+      });
+    }
+
+    function pumpFists(wordText, isShoot = false) {
+      const chantEl = document.getElementById('chant-word');
+      chantEl.textContent = wordText;
+      chantEl.classList.toggle('pop', isShoot);
+
+      ['kid-orb', 'bot-orb'].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove('pumping', 'winner', 'loser');
+        void el.offsetWidth;
+        el.classList.add('pumping');
+      });
+    }
+
+    function clearChantTimers() {
+      chantTimers.forEach(t => clearTimeout(t));
+      chantTimers = [];
+      if (shootRaf) { cancelAnimationFrame(shootRaf); shootRaf = null; }
+    }
+
+    // Start "Rock... Paper... Scissors... SHOOT!" Synced to Kid's Recording!
+    function startCountdown() {
+      clearChantTimers();
+      state = 'chant';
+      setButtonsLocked(true);
+      document.getElementById('go-btn').style.display = 'none';
+      document.getElementById('timer-wrap').style.display = 'none';
+      document.getElementById('kid-orb').textContent = '✊';
+      document.getElementById('bot-orb').textContent = '✊';
+      document.getElementById('kid-orb').classList.remove('winner', 'loser');
+      document.getElementById('bot-orb').classList.remove('winner', 'loser');
+
+      const clip = kidAudio[voiceKid];
+      clip.currentTime = 0;
+
+      // Determine exact chant duration from recorded M4A (fallback to 1.85s if still loading)
+      const totalMs = (clip.duration && isFinite(clip.duration) && clip.duration > 0.6)
+        ? clip.duration * 1000
+        : 1850;
+
+      clip.play().catch(() => {});
+
+      // Beat 1: ROCK (0%), Beat 2: PAPER (27%), Beat 3: SCISSORS (54%), Beat 4: SHOOT! (80% - right as "Shoot!" hits!)
+      const tRock     = 0;
+      const tPaper    = Math.round(totalMs * 0.27);
+      const tScissors = Math.round(totalMs * 0.54);
+      const tShoot    = Math.round(totalMs * 0.78);
+
+      chantTimers.push(setTimeout(() => { pumpFists('🪨 ROCK...'); playSynth(220, 200, 0.08); }, tRock));
+      chantTimers.push(setTimeout(() => { pumpFists('📄 PAPER...'); playSynth(260, 240, 0.08); }, tPaper));
+      chantTimers.push(setTimeout(() => { pumpFists('✂️ SCISSORS...'); playSynth(310, 290, 0.08); }, tScissors));
+      chantTimers.push(setTimeout(() => openShootWindow(), tShoot));
+    }
+
+    function openShootWindow() {
+      state = 'shoot';
+      pumpFists('💥 SHOOT! 💥', true);
+      playSynth(523.25, 783.99, 0.16, 'square', 0.2);
+      setButtonsLocked(false);
+
+      const wrap = document.getElementById('timer-wrap');
+      const bar = document.getElementById('timer-bar');
+      wrap.style.display = 'block';
+      const start = performance.now();
+      shootDeadline = start + SHOOT_WINDOW_MS;
+
+      function tickTimer(now) {
+        if (state !== 'shoot') return;
+        const pct = Math.max(0, ((shootDeadline - now) / SHOOT_WINDOW_MS) * 100);
+        bar.style.width = `${pct}%`;
+        if (now >= shootDeadline) {
+          handleTooSlow();
+        } else {
+          shootRaf = requestAnimationFrame(tickTimer);
+        }
+      }
+      shootRaf = requestAnimationFrame(tickTimer);
+    }
+
+    function handleTooSlow() {
+      state = 'result';
+      setButtonsLocked(true);
+      document.getElementById('timer-wrap').style.display = 'none';
+      document.getElementById('chant-word').classList.remove('pop');
+      document.getElementById('chant-word').textContent = '⏰ TOO SLOW! TRY AGAIN!';
+      playSynth(220, 120, 0.28, 'sawtooth', 0.22);
+
+      // Keep streak safe on an accidental missed tap forEmma, reset on Wyatt, or quick retry button!
+      const goBtn = document.getElementById('go-btn');
+      goBtn.textContent = '🔄 SHOOT AGAIN!';
+      goBtn.style.display = 'inline-block';
+    }
+
+    function resolveThrow(kidChoice) {
+      if (state !== 'shoot') return;
+      state = 'result';
+      clearChantTimers();
+      setButtonsLocked(true);
+      document.getElementById('timer-wrap').style.display = 'none';
+      document.getElementById('chant-word').classList.remove('pop');
+
+      // Kid-friendly arcade odds (~54% win, ~26% tie, ~20% loss) so streaks build huge excitement while staying suspenseful!
+      const roll = Math.random();
+      let botChoice;
+      if (roll < 0.54) {
+        botChoice = THROWS[kidChoice].beats; // Kid wins!
+      } else if (roll < 0.80) {
+        botChoice = kidChoice; // Tie -> Replay!
+      } else {
+        botChoice = KEYS.find(k => THROWS[k].beats === kidChoice); // Bot wins!
+      }
+
+      const kidOrb = document.getElementById('kid-orb');
+      const botOrb = document.getElementById('bot-orb');
+      kidOrb.textContent = THROWS[kidChoice].icon;
+      botOrb.textContent = THROWS[botChoice].icon;
+
+      // 1. TIE -> Automatic Instant Replay!
+      if (kidChoice === botChoice) {
+        document.getElementById('chant-word').textContent = '🤝 TIE! REPLAY!';
+        playSynth(392, 440, 0.2, 'triangle', 0.24);
+        chantTimers.push(setTimeout(startCountdown, 1150));
+        return;
+      }
+
+      // 2. KID WINS -> DOPAMINE EXPLOSION & STREAK CLIMB!
+      if (THROWS[kidChoice].beats === botChoice) {
+        streak++;
+        const brokeRecord = streak > bestStreak;
+        if (brokeRecord) {
+          bestStreak = streak;
+          localStorage.setItem(bestKey, String(bestStreak));
+        }
+
+        kidOrb.classList.add('winner');
+        botOrb.classList.add('loser');
+        document.body.classList.add('win-shake');
+        setTimeout(() => document.body.classList.remove('win-shake'), 380);
+
+        // Escalating pitch & fireworks for bigger streaks!
+        const pitchBoost = Math.min(1.5, 1 + streak * 0.06);
+        [440, 554.37, 659.25, 880].forEach((f, idx) => {
+          setTimeout(() => playSynth(f * pitchBoost, f * pitchBoost * 1.03, 0.2, 'triangle', 0.28), idx * 75);
+        });
+        spawnFireworks(Math.min(130, 40 + streak * 18));
+
+        let banner = `🎉 ${kidChoice.toUpperCase()} ${THROWS[kidChoice].verb} ${botChoice.toUpperCase()}!`;
+        if (brokeRecord && streak >= 2) banner = `👑 NEW RECORD: ${streak} IN A ROW!`;
+        else if (streak >= 5) banner = `🌟 UNSTOPPABLE ${streak}x STREAK!`;
+        else if (streak >= 3) banner = `🔥 ${streak} IN A ROW! ON FIRE!`;
+
+        document.getElementById('chant-word').textContent = banner;
+        updateStreakUI(true);
+
+        // Auto-chain into next round so streak momentum feels electric!
+        chantTimers.push(setTimeout(startCountdown, 1650));
+      } else {
+        // 3. BOT WINS -> Streak Resets & Big Rematch Button!
+        botOrb.classList.add('winner');
+        kidOrb.classList.add('loser');
+        playSynth(240, 110, 0.35, 'sawtooth', 0.24);
+
+        const prevStreak = streak;
+        streak = 0;
+        updateStreakUI(false);
+
+        document.getElementById('chant-word').textContent = prevStreak >= 3
+          ? `😮 OH NO! ${prevStreak}x STREAK ENDED!`
+          : `🤖 BOT GOT LUCKY!`;
+
+        const goBtn = document.getElementById('go-btn');
+        goBtn.textContent = '🔥 PLAY AGAIN!';
+        goBtn.style.display = 'inline-block';
+      }
+    }
+
+    document.querySelectorAll('.throw-btn').forEach(btn => {
+      btn.onpointerdown = (e) => {
+        e.preventDefault();
+        resolveThrow(btn.dataset.choice);
+      };
+    });
+
+    document.getElementById('go-btn').onpointerdown = () => startCountdown();
+  </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 /* Offline shell for the Wyatt & Emma Pixel WebAPK. */
-const CACHE = 'wyatt-emma-arcade-v20';
+const CACHE = 'wyatt-emma-arcade-v21';
 
 const SHELL = [
   '/',
@@ -28,6 +28,10 @@ const SHELL = [
   '/castle-siege.css',
   '/castle-physics.js',
   '/images/siege-bg.jpg',
+  '/rps-shoot.html',
+  '/rps-shoot.css',
+  '/audio/emmarps.m4a',
+  '/audio/wyattrps.m4a',
   '/manifest.json',
   '/engine/diorama-engine.css',
   '/engine/diorama-engine.js',
